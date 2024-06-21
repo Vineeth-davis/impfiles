@@ -1,0 +1,10 @@
+Yes, it is possible to limit who can access the running container and its contents, while still allowing all users to use the services provided by the container. Here's a simpler breakdown of how you can achieve this:
+
+Concept Overview
+Restricted Access to Containers:
+
+Ensure only authorized users (those with the username and password) can manage the container (start, stop, or access it).
+Ordinary users can still access the services running inside the container but cannot directly interact with the container itself or view its contents.
+Service Access:
+
+All users within the client site can use the service (e.g., a web application hosted by Django) provided by the container without needing access to the container.
