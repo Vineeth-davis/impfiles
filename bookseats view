@@ -1,0 +1,85 @@
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.forms import AuthenticationForm
+from .models import Employee, Facility, SeatBookInfo
+from .forms import EmployeeCreationForm
+from django.utils import timezone
+from django.contrib.auth.decorators import login_required
+
+# Signup view
+def signup_view(request):
+    if request.method == 'POST':
+        form = EmployeeCreationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            emp_id = form.cleaned_data.get('emp_id')
+            raw_password = form.cleaned_data.get('password1')
+            user = authenticate(emp_id=emp_id, password=raw_password)
+            login(request, user)
+            return redirect('seatbookinfo_list')
+    else:
+        form = EmployeeCreationForm()
+    return render(request, 'signup.html', {'form': form})
+
+# Login view
+def login_view(request):
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            emp_id = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user = authenticate(emp_id=emp_id, password=password)
+            if user is not None:
+                login(request, user)
+                return redirect('seatbookinfo_list')
+    else:
+        form = AuthenticationForm()
+    return render(request, 'login.html', {'form': form})
+
+# Logout view
+def logout_view(request):
+    logout(request)
+    return redirect('login')
+
+# View to show available seats
+@login_required
+def available_seats(request):
+    building_name = request.GET.get('building_name')
+    floor_number = request.GET.get('floor_number')
+    wing_number = request.GET.get('wing_number')
+    booking_date = request.GET.get('booking_date', timezone.now().date())
+    
+    if building_name and floor_number and wing_number:
+        booked_seats = SeatBookInfo.objects.filter(booking_date=booking_date).values_list('seat_id', flat=True)
+        available_seats = Facility.objects.filter(
+            building_name=building_name,
+            floor_number=floor_number,
+            wing_number=wing_number
+        ).exclude(seat_id__in=booked_seats)
+    else:
+        available_seats = Facility.objects.none()
+    
+    return render(request, 'available_seats.html', {'available_seats': available_seats, 'booking_date': booking_date})
+
+# View to create a seat booking
+@login_required
+def seatbookinfo_create(request):
+    if request.method == 'POST':
+        seat_id = request.POST.get('seat_id')
+        booking_date = request.POST.get('booking_date')
+        
+        SeatBookInfo.objects.create(emp_id=request.user, seat_id_id=seat_id, booking_date=booking_date)
+        return redirect('seatbookinfo_list')  # Or redirect to any other page you want after booking
+    
+    return render(request, 'seatbookinfo_form.html')
+
+# View to delete a seat booking
+@login_required
+def seatbookinfo_delete(request, pk):
+    seatbookinfo = get_object_or_404(SeatBookInfo, pk=pk)
+    if request.user != seatbookinfo.emp_id:
+        return redirect('seatbookinfo_list')  # Prevent deletion if not the owner
+    if request.method == 'POST':
+        seatbookinfo.delete()
+        return redirect('seatbookinfo_list')
+    return render(request, 'seatbookinfo_confirm_delete.html', {'seatbookinfo': seatbookinfo})
