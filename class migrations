@@ -396,5 +396,160 @@ With these changes, users can now see a list of their bookings and delete them a
 
 
 
+1. Update the Employee Model
+Here's how you can define your Employee model:
 
+models.py
+python
+Copy code
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.db import models
+
+class EmployeeManager(BaseUserManager):
+    def create_user(self, emp_id, emp_name, password=None, **extra_fields):
+        if not emp_id:
+            raise ValueError('The Employee ID must be set')
+        if not emp_name:
+            raise ValueError('The Employee Name must be set')
+        
+        user = self.model(emp_id=emp_id, emp_name=emp_name, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, emp_id, emp_name, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+
+        return self.create_user(emp_id, emp_name, password, **extra_fields)
+
+class Employee(AbstractBaseUser, PermissionsMixin):
+    emp_id = models.CharField(max_length=10, unique=True, primary_key=True)
+    emp_name = models.CharField(max_length=100)
+    mgr_id = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='subordinates')
+    emp_contact_details = models.CharField(max_length=200, blank=True)
+
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    
+    objects = EmployeeManager()
+
+    USERNAME_FIELD = 'emp_id'
+    REQUIRED_FIELDS = ['emp_name']
+
+    def __str__(self):
+        return self.emp_name
+2. Update Migrations
+Handle existing data carefully. First, create an initial migration with the updated model:
+
+bash
+Copy code
+python manage.py makemigrations
+Manually adjust the migration file to set default values if necessary.
+
+3. Create Views for Signup and Login
+views.py
+python
+Copy code
+from django.shortcuts import render, redirect
+from django.contrib.auth import login, authenticate, logout
+from django.contrib import messages
+from .models import Employee
+from django.db import IntegrityError
+
+def signup_view(request):
+    if request.method == 'POST':
+        emp_id = request.POST.get('emp_id')
+        emp_name = request.POST.get('emp_name')
+        password1 = request.POST.get('password1')
+        password2 = request.POST.get('password2')
+
+        if password1 != password2:
+            messages.error(request, "Passwords do not match.")
+            return render(request, 'signup.html')
+
+        try:
+            user = Employee.objects.create_user(
+                emp_id=emp_id,
+                emp_name=emp_name,
+                password=password1
+            )
+            login(request, user)
+            return redirect('available_seats')
+        except IntegrityError:
+            messages.error(request, "Employee ID already exists.")
+            return render(request, 'signup.html')
+    return render(request, 'signup.html')
+
+def login_view(request):
+    if request.method == 'POST':
+        emp_id = request.POST.get('emp_id')
+        password = request.POST.get('password')
+        user = authenticate(request, emp_id=emp_id, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('available_seats')
+        else:
+            messages.error(request, "Invalid Employee ID or Password.")
+    return render(request, 'login.html')
+
+def logout_view(request):
+    logout(request)
+    return redirect('login')
+4. Update HTML Templates
+signup.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Sign Up</h2>
+<form method="post">
+    {% csrf_token %}
+    <label for="emp_id">Employee ID:</label>
+    <input type="text" id="emp_id" name="emp_id" required><br>
+    <label for="emp_name">Employee Name:</label>
+    <input type="text" id="emp_name" name="emp_name" required><br>
+    <label for="password1">Password:</label>
+    <input type="password" id="password1" name="password1" required><br>
+    <label for="password2">Confirm Password:</label>
+    <input type="password" id="password2" name="password2" required><br>
+    <button type="submit">Sign Up</button>
+</form>
+{% endblock %}
+login.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Login</h2>
+<form method="post">
+    {% csrf_token %}
+    <label for="emp_id">Employee ID:</label>
+    <input type="text" id="emp_id" name="emp_id" required><br>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required><br>
+    <button type="submit">Login</button>
+</form>
+{% endblock %}
+5. Update URL Configuration
+Add the new paths to your urls.py.
+
+urls.py
+python
+Copy code
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('signup/', views.signup_view, name='signup'),
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    path('available_seats/', views.available_seats, name='available_seats'),
+    path('book_seat/', views.seatbookinfo_create, name='seatbookinfo_create'),
+    path('delete_booking/<int:pk>/', views.seatbookinfo_delete, name='seatbookinfo_delete'),
+    path('user_bookings/', views.user_bookings, name='user_bookings'),
+    # other paths...
+]
 
