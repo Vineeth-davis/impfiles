@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('auth', '0012_auto_20210601_0732'),  # Ensure this is the correct latest migration for 'auth'
-    ]
+    
 
     operations = [
         migrations.CreateModel(
@@ -37,3 +37,364 @@ class Migration(migrations.Migration):
             },
         ),
     ]
+
+
+
+
+Sure, let's create custom views and templates for login and signup without using Django's form classes.
+
+1. Update the urls.py
+Add paths for login and signup views:
+
+python
+Copy code
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('signup/', views.signup_view, name='signup'),
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    # other paths...
+]
+2. Update the Views
+Implement custom views for login and signup:
+
+views.py
+python
+Copy code
+from django.shortcuts import render, redirect
+from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from .models import Employee
+from django.db import IntegrityError
+
+def signup_view(request):
+    if request.method == 'POST':
+        emp_id = request.POST.get('emp_id')
+        username = request.POST.get('username')
+        emp_name = request.POST.get('emp_name')
+        email = request.POST.get('email')
+        password1 = request.POST.get('password1')
+        password2 = request.POST.get('password2')
+
+        if password1 != password2:
+            messages.error(request, "Passwords do not match.")
+            return render(request, 'signup.html')
+
+        try:
+            user = Employee.objects.create_user(
+                emp_id=emp_id,
+                username=username,
+                emp_name=emp_name,
+                email=email,
+                password=password1
+            )
+            login(request, user)
+            return redirect('available_seats')
+        except IntegrityError:
+            messages.error(request, "Employee ID or Username already exists.")
+            return render(request, 'signup.html')
+    return render(request, 'signup.html')
+
+def login_view(request):
+    if request.method == 'POST':
+        emp_id = request.POST.get('emp_id')
+        password = request.POST.get('password')
+        user = authenticate(request, emp_id=emp_id, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('available_seats')
+        else:
+            messages.error(request, "Invalid Employee ID or Password.")
+    return render(request, 'login.html')
+
+def logout_view(request):
+    logout(request)
+    return redirect('login')
+3. Create the HTML Templates
+signup.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Sign Up</h2>
+<form method="post">
+    {% csrf_token %}
+    <label for="emp_id">Employee ID:</label>
+    <input type="text" id="emp_id" name="emp_id" required><br>
+    <label for="username">Username:</label>
+    <input type="text" id="username" name="username" required><br>
+    <label for="emp_name">Employee Name:</label>
+    <input type="text" id="emp_name" name="emp_name" required><br>
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email" required><br>
+    <label for="password1">Password:</label>
+    <input type="password" id="password1" name="password1" required><br>
+    <label for="password2">Confirm Password:</label>
+    <input type="password" id="password2" name="password2" required><br>
+    <button type="submit">Sign Up</button>
+</form>
+{% endblock %}
+login.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Login</h2>
+<form method="post">
+    {% csrf_token %}
+    <label for="emp_id">Employee ID:</label>
+    <input type="text" id="emp_id" name="emp_id" required><br>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required><br>
+    <button type="submit">Login</button>
+</form>
+{% endblock %}
+4. Protect Views to Ensure Only Logged-In Users Can Book or Delete Seats
+views.py
+Ensure the views are protected using @login_required.
+
+python
+Copy code
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from .models import Facility, SeatBookInfo
+from django.utils import timezone
+
+@login_required
+def available_seats(request):
+    building_name = request.GET.get('building_name')
+    floor_number = request.GET.get('floor_number')
+    wing_number = request.GET.get('wing_number')
+    booking_date = request.GET.get('booking_date', timezone.now().date())
+
+    if building_name and floor_number and wing_number:
+        booked_seats = SeatBookInfo.objects.filter(booking_date=booking_date).values_list('seat_id', flat=True)
+        available_seats = Facility.objects.filter(
+            building_name=building_name,
+            floor_number=floor_number,
+            wing_number=wing_number
+        ).exclude(seat_id__in=booked_seats)
+    else:
+        available_seats = Facility.objects.none()
+
+    return render(request, 'available_seats.html', {'available_seats': available_seats, 'booking_date': booking_date})
+
+@login_required
+def seatbookinfo_create(request):
+    if request.method == 'POST':
+        seat_id = request.POST.get('seat_id')
+        booking_date = request.POST.get('booking_date')
+        SeatBookInfo.objects.create(emp_id=request.user, seat_id_id=seat_id, booking_date=booking_date)
+        return redirect('available_seats')
+
+    return render(request, 'seatbookinfo_form.html')
+
+@login_required
+def seatbookinfo_delete(request, pk):
+    seatbookinfo = get_object_or_404(SeatBookInfo, pk=pk)
+    if request.user != seatbookinfo.emp_id:
+        return redirect('available_seats')  # Prevent deletion if not the owner
+    if request.method == 'POST':
+        seatbookinfo.delete()
+        return redirect('available_seats')
+    return render(request, 'seatbookinfo_confirm_delete.html', {'seatbookinfo': seatbookinfo})
+5. Update HTML Templates for Book and Delete Actions
+available_seats.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+  <h2>Available Seats on {{ booking_date }}</h2>
+  <form method="get">
+    <label for="building_name">Building:</label>
+    <input type="text" id="building_name" name="building_name" required>
+    <label for="floor_number">Floor:</label>
+    <input type="number" id="floor_number" name="floor_number" required>
+    <label for="wing_number">Wing:</label>
+    <input type="number" id="wing_number" name="wing_number" required>
+    <label for="booking_date">Date:</label>
+    <input type="date" id="booking_date" name="booking_date" value="{{ booking_date }}" required>
+    <button type="submit">Check Availability</button>
+  </form>
+
+  <ul>
+    {% for seat in available_seats %}
+      <li>{{ seat.seat_id }} - 
+        <form method="post" action="{% url 'seatbookinfo_create' %}">
+          {% csrf_token %}
+          <input type="hidden" name="seat_id" value="{{ seat.seat_id }}">
+          <input type="hidden" name="booking_date" value="{{ booking_date }}">
+          <button type="submit">Book</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+seatbookinfo_form.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Book Seat</h2>
+<form method="post">
+    {% csrf_token %}
+    <label for="seat_id">Seat ID:</label>
+    <input type="text" id="seat_id" name="seat_id" required><br>
+    <label for="booking_date">Booking Date:</label>
+    <input type="date" id="booking_date" name="booking_date" required><br>
+    <button type="submit">Book</button>
+</form>
+{% endblock %}
+seatbookinfo_confirm_delete.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Are you sure you want to delete this booking?</h2>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit">Confirm Delete</button>
+</form>
+<a href="{% url 'available_seats' %}">Cancel</a>
+{% endblock %}
+6. Migrate the Database
+Ensure all migrations are applied:
+
+bash
+Copy code
+python manage.py makemigrations
+python manage.py migrate
+This setup ensures that only logged-in users can book or delete seats, and the login/signup views and templates are custom-built without using Django forms.
+
+
+list bookings of user so that he can delete it 
+ChatGPT
+To list the bookings of a logged-in user and provide the ability to delete them, follow these steps:
+
+1. Update the Views
+Add a view to list the bookings of the logged-in user and ensure that the delete functionality is restricted to the owner of the booking.
+
+views.py
+python
+Copy code
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from .models import Facility, SeatBookInfo
+from django.utils import timezone
+
+@login_required
+def available_seats(request):
+    building_name = request.GET.get('building_name')
+    floor_number = request.GET.get('floor_number')
+    wing_number = request.GET.get('wing_number')
+    booking_date = request.GET.get('booking_date', timezone.now().date())
+
+    if building_name and floor_number and wing_number:
+        booked_seats = SeatBookInfo.objects.filter(booking_date=booking_date).values_list('seat_id', flat=True)
+        available_seats = Facility.objects.filter(
+            building_name=building_name,
+            floor_number=floor_number,
+            wing_number=wing_number
+        ).exclude(seat_id__in=booked_seats)
+    else:
+        available_seats = Facility.objects.none()
+
+    return render(request, 'available_seats.html', {'available_seats': available_seats, 'booking_date': booking_date})
+
+@login_required
+def seatbookinfo_create(request):
+    if request.method == 'POST':
+        seat_id = request.POST.get('seat_id')
+        booking_date = request.POST.get('booking_date')
+        SeatBookInfo.objects.create(emp_id=request.user, seat_id_id=seat_id, booking_date=booking_date)
+        return redirect('user_bookings')
+
+    return render(request, 'seatbookinfo_form.html')
+
+@login_required
+def seatbookinfo_delete(request, pk):
+    seatbookinfo = get_object_or_404(SeatBookInfo, pk=pk)
+    if request.user != seatbookinfo.emp_id:
+        return redirect('user_bookings')  # Prevent deletion if not the owner
+    if request.method == 'POST':
+        seatbookinfo.delete()
+        return redirect('user_bookings')
+    return render(request, 'seatbookinfo_confirm_delete.html', {'seatbookinfo': seatbookinfo})
+
+@login_required
+def user_bookings(request):
+    user_bookings = SeatBookInfo.objects.filter(emp_id=request.user)
+    return render(request, 'user_bookings.html', {'user_bookings': user_bookings})
+2. Update the URL Configuration
+Add the new view to your urls.py.
+
+urls.py
+python
+Copy code
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('signup/', views.signup_view, name='signup'),
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    path('available_seats/', views.available_seats, name='available_seats'),
+    path('book_seat/', views.seatbookinfo_create, name='seatbookinfo_create'),
+    path('delete_booking/<int:pk>/', views.seatbookinfo_delete, name='seatbookinfo_delete'),
+    path('user_bookings/', views.user_bookings, name='user_bookings'),
+    # other paths...
+]
+3. Create the HTML Templates
+user_bookings.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Your Bookings</h2>
+<ul>
+    {% for booking in user_bookings %}
+    <li>{{ booking.seat_id.seat_id }} on {{ booking.booking_date }}
+        <form method="post" action="{% url 'seatbookinfo_delete' booking.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit">Delete</button>
+        </form>
+    </li>
+    {% empty %}
+    <li>You have no bookings.</li>
+    {% endfor %}
+</ul>
+<a href="{% url 'available_seats' %}">Book a Seat</a>
+{% endblock %}
+seatbookinfo_confirm_delete.html
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Are you sure you want to delete this booking?</h2>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit">Confirm Delete</button>
+</form>
+<a href="{% url 'user_bookings' %}">Cancel</a>
+{% endblock %}
+4. Protect the User's Data
+Ensure that all views are protected by the @login_required decorator so that only authenticated users can access their bookings and delete them. The seatbookinfo_delete view is already set up to ensure that only the owner of the booking can delete it.
+
+With these changes, users can now see a list of their bookings and delete them as needed. The user_bookings view and template ensure that only the authenticated user's bookings are displayed and managed.
+
+
+
+
+
+
+
