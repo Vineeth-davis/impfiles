@@ -747,3 +747,151 @@ def seatbookinfo_delete(request, pk):
 def user_bookings(request):
     user_bookings = SeatBookInfo.objects.filter(emp_id=request.user)
     return render(request, 'user_bookings.html', {'user_bookings': user_bookings})
+
+
+
+
+
+
+Here's how to create separate URLs for bulk create and normal create operations in the Facility model and how to allow the user to pass the number of seats in the HTML form.
+
+Update Views
+views.py
+Add separate views for normal creation and bulk creation of seats.
+
+python
+Copy code
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse
+from .models import Facility
+
+def facility_list(request):
+    facilities = Facility.objects.all()
+    return render(request, 'facility_list.html', {'facilities': facilities})
+
+def facility_create(request):
+    if request.method == 'POST':
+        building_name = request.POST.get('building_name')
+        floor_number = int(request.POST.get('floor_number'))
+        wing_number = int(request.POST.get('wing_number'))
+        seat_number = int(request.POST.get('seat_number'))
+
+        seat_id = f"{building_name[0]}{floor_number}W{wing_number:02d}-{seat_number:03d}"
+        Facility.objects.create(
+            seat_id=seat_id,
+            building_name=building_name,
+            floor_number=floor_number,
+            wing_number=wing_number,
+            seat_number=seat_number
+        )
+        return redirect('facility_list')
+    return render(request, 'facility_create.html')
+
+def facility_bulk_create(request):
+    if request.method == 'POST':
+        building_name = request.POST.get('building_name')
+        floor_number = int(request.POST.get('floor_number'))
+        wing_number = int(request.POST.get('wing_number'))
+        number_of_seats = int(request.POST.get('number_of_seats'))
+
+        last_seat = Facility.objects.filter(
+            building_name=building_name,
+            floor_number=floor_number,
+            wing_number=wing_number
+        ).order_by('-seat_number').first()
+
+        start_seat_number = last_seat.seat_number + 1 if last_seat else 1
+
+        facilities = []
+        for i in range(number_of_seats):
+            seat_number = start_seat_number + i
+            seat_id = f"{building_name[0]}{floor_number}W{wing_number:02d}-{seat_number:03d}"
+            facilities.append(Facility(
+                seat_id=seat_id,
+                building_name=building_name,
+                floor_number=floor_number,
+                wing_number=wing_number,
+                seat_number=seat_number
+            ))
+        Facility.objects.bulk_create(facilities)
+        return redirect('facility_list')
+    return render(request, 'facility_bulk_create.html')
+
+def facility_update(request, pk):
+    facility = get_object_or_404(Facility, pk=pk)
+    if request.method == 'POST':
+        facility.building_name = request.POST.get('building_name')
+        facility.floor_number = int(request.POST.get('floor_number'))
+        facility.wing_number = int(request.POST.get('wing_number'))
+        facility.seat_number = int(request.POST.get('seat_number'))
+        facility.save()
+        return redirect('facility_list')
+    return render(request, 'facility_update.html', {'facility': facility})
+
+def facility_delete(request, pk):
+    facility = get_object_or_404(Facility, pk=pk)
+    if request.method == 'POST':
+        facility.delete()
+        return redirect('facility_list')
+    return render(request, 'facility_delete.html', {'facility': facility})
+Update Templates
+facility_create.html
+HTML form for creating a single seat.
+
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Create Facility</h2>
+<form method="post">
+    {% csrf_token %}
+    <label for="building_name">Building Name:</label>
+    <input type="text" id="building_name" name="building_name" required><br>
+    <label for="floor_number">Floor Number:</label>
+    <input type="number" id="floor_number" name="floor_number" required><br>
+    <label for="wing_number">Wing Number:</label>
+    <input type="number" id="wing_number" name="wing_number" required><br>
+    <label for="seat_number">Seat Number:</label>
+    <input type="number" id="seat_number" name="seat_number" required><br>
+    <button type="submit">Create</button>
+</form>
+{% endblock %}
+facility_bulk_create.html
+HTML form for creating multiple seats.
+
+html
+Copy code
+{% extends 'base_generic.html' %}
+
+{% block content %}
+<h2>Bulk Create Facility</h2>
+<form method="post">
+    {% csrf_token %}
+    <label for="building_name">Building Name:</label>
+    <input type="text" id="building_name" name="building_name" required><br>
+    <label for="floor_number">Floor Number:</label>
+    <input type="number" id="floor_number" name="floor_number" required><br>
+    <label for="wing_number">Wing Number:</label>
+    <input type="number" id="wing_number" name="wing_number" required><br>
+    <label for="number_of_seats">Number of Seats:</label>
+    <input type="number" id="number_of_seats" name="number_of_seats" required><br>
+    <button type="submit">Create</button>
+</form>
+{% endblock %}
+Update URL Configuration
+Add the URL patterns for the new views in your urls.py.
+
+python
+Copy code
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('facilities/', views.facility_list, name='facility_list'),
+    path('facilities/create/', views.facility_create, name='facility_create'),
+    path('facilities/bulk_create/', views.facility_bulk_create, name='facility_bulk_create'),
+    path('facilities/update/<int:pk>/', views.facility_update, name='facility_update'),
+    path('facilities/delete/<int:pk>/', views.facility_delete, name='facility_delete'),
+    # other paths...
+]
