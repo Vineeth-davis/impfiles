@@ -712,3 +712,38 @@ Copy code
 </form>
 {% endblock %}
 These changes should address the clashes and allow for the correct functionality of the authentication system with emp_id as the primary key and username.
+
+
+###### delete and user bookings
+
+
+@login_required
+def seatbookinfo_delete(request, pk):
+    seatbookinfo = get_object_or_404(SeatBookInfo, pk=pk)
+    if request.user != seatbookinfo.emp_id:
+        return redirect('user_bookings')  # Prevent deletion if not the owner
+    if request.method == 'POST':
+        seatbookinfo.delete()
+        return redirect('user_bookings')
+    return render(request, 'seatbookinfo_confirm_delete.html', {'seatbookinfo': seatbookinfo})
+
+@login_required
+def user_bookings(request):
+    user_bookings = SeatBookInfo.objects.filter(emp_id=request.user)
+    return render(request, 'user_bookings.html', {'user_bookings': user_bookings})
+
+
+@login_required
+def seatbookinfo_delete(request, pk):
+    seatbookinfo = get_object_or_404(SeatBookInfo, pk=pk)
+    if request.user != seatbookinfo.emp_id:
+        return redirect('user_bookings')  # Prevent deletion if not the owner
+    if request.method == 'POST':
+        seatbookinfo.delete()
+        return redirect('user_bookings')
+    return render(request, 'seatbookinfo_confirm_delete.html', {'seatbookinfo': seatbookinfo})
+
+@login_required
+def user_bookings(request):
+    user_bookings = SeatBookInfo.objects.filter(emp_id=request.user)
+    return render(request, 'user_bookings.html', {'user_bookings': user_bookings})
