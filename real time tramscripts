@@ -1,0 +1,142 @@
+Step-by-Step Implementation
+1. Setup Real-time Transcription
+We'll use pyaudio for capturing audio and vosk for real-time transcription.
+
+Install necessary packages:
+
+sh
+Copy code
+pip install pyaudio vosk
+Real-time Transcription Script:
+
+python
+Copy code
+import pyaudio
+import json
+from vosk import Model, KaldiRecognizer
+import time
+import threading
+
+# Initialize the Vosk model
+model = Model("path_to_vosk_model")
+recognizer = KaldiRecognizer(model, 16000)
+
+# Initialize PyAudio
+audio = pyaudio.PyAudio()
+stream = audio.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=1024)
+stream.start_stream()
+
+transcripts = []
+
+def transcribe_audio():
+    global transcripts
+    while True:
+        data = stream.read(1024)
+        if recognizer.AcceptWaveform(data):
+            result = recognizer.Result()
+            text = json.loads(result)['text']
+            timestamp = time.time()  # Use current time as timestamp
+            transcripts.append((timestamp, text))
+            print(f"Transcript added: {text}")
+
+# Start transcribing in a separate thread
+transcription_thread = threading.Thread(target=transcribe_audio)
+transcription_thread.start()
+2. Generate Embeddings using OllamaEmbedding
+We will use the OllamaEmbedding from llama_index and your internally hosted models.
+
+Example script:
+
+python
+Copy code
+from llama_index import OllamaEmbedding, SimpleDocument
+import numpy as np
+
+# Initialize embeddings model
+embedding_model = OllamaEmbedding(base_url='http://dcilda3414.amat.com:10008', model='llama3')
+
+def generate_embeddings(text):
+    document = SimpleDocument(text=text)
+    embedding = embedding_model.get_embedding(document)
+    return np.array(embedding)
+3. Implement Q&A with Timestamp
+Flask API:
+
+python
+Copy code
+from flask import Flask, request, jsonify
+from flask_socketio import SocketIO, emit
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+# Use the transcripts from the transcription thread
+def get_transcripts_up_to(timestamp):
+    return " ".join([text for ts, text in transcripts if ts <= timestamp])
+
+def get_transcript_chunks_up_to(timestamp):
+    return [(ts, text) for ts, text in transcripts if ts <= timestamp]
+
+def embed_transcript_chunks(chunks):
+    return [generate_embeddings(chunk[1]) for chunk in chunks]
+
+@app.route('/ask', methods=['POST'])
+def ask():
+    data = request.json
+    question = data.get('question')
+    timestamp = data.get('timestamp')
+
+    chunks = get_transcript_chunks_up_to(timestamp)
+    if not chunks:
+        return jsonify({"answer": "No transcript available up to the provided timestamp"}), 400
+
+    transcript_texts = [chunk[1] for chunk in chunks]
+    transcript_embeddings = embed_transcript_chunks(chunks)
+
+    question_embedding = generate_embeddings(question)
+    similarities = [cosine_similarity(question_embedding.reshape(1, -1), te.reshape(1, -1)).flatten()[0] for te in transcript_embeddings]
+
+    most_similar_index = np.argmax(similarities)
+    context = transcript_texts[most_similar_index]
+
+    # Use the QA model hosted on your server
+    llm_small = Ollama(base_url='http://dcilda3414.amat.com:10008', model='llama3')
+    response = llm_small.predict(question=question, context=context)
+    answer = response['answer']
+
+    return jsonify({"answer": answer})
+
+@socketio.on('message')
+def handle_message(message):
+    question = message['question']
+    timestamp = message['timestamp']
+
+    chunks = get_transcript_chunks_up_to(timestamp)
+    if not chunks:
+        emit('response', {'answer': "No transcript available up to the provided timestamp"})
+        return
+
+    transcript_texts = [chunk[1] for chunk in chunks]
+    transcript_embeddings = embed_transcript_chunks(chunks)
+
+    question_embedding = generate_embeddings(question)
+    similarities = [cosine_similarity(question_embedding.reshape(1, -1), te.reshape(1, -1)).flatten()[0] for te in transcript_embeddings]
+
+    most_similar_index = np.argmax(similarities)
+    context = transcript_texts[most_similar_index]
+
+    llm_small = Ollama(base_url='http://dcilda3414.amat.com:10008', model='llama3')
+    response = llm_small.predict(question=question, context=context)
+    answer = response['answer']
+
+    emit('response', {'answer': answer})
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)
+Summary
+Real-time Transcription: Use pyaudio and vosk to capture and transcribe audio in real-time.
+Generate Embeddings: Use OllamaEmbedding for embedding generation.
+Implement Q&A with Timestamp Filtering: Use Flask and your internally hosted models to implement a Q&A system that answers questions based on transcripts up to the given timestamp.
+This approach ensures that you utilize your organization's hosted models and keep all operations within the local environment, adhering to your security policies. Let me know if you need any further customization or details!
