@@ -1,0 +1,209 @@
+Steps to Integrate Microsoft Teams API
+Register an Application in Azure AD
+Obtain API Permissions
+Set Up Microsoft Graph Client
+Real-time Transcription and Q&A Integration
+1. Register an Application in Azure AD
+Register an App:
+
+Go to the Azure Portal.
+Navigate to "Azure Active Directory" > "App registrations" > "New registration".
+Enter a name for your app, e.g., "Teams Q&A Bot".
+Set the redirect URI (you can use http://localhost for local development).
+Click "Register".
+Configure API Permissions:
+
+Go to your app's registration page.
+Navigate to "API permissions" > "Add a permission" > "Microsoft Graph".
+Select "Delegated permissions".
+Add the following permissions:
+ChannelMessage.Read.All
+ChannelMessage.Send
+Chat.Read
+Chat.ReadWrite
+TeamsActivity.Send
+Click "Add permissions".
+Click "Grant admin consent for [your organization]" to grant permissions.
+Generate Client Secret:
+
+Navigate to "Certificates & secrets" > "New client secret".
+Add a description and set an expiration period.
+Click "Add" and copy the client secret. Store this securely, you will need it later.
+2. Obtain API Permissions
+Ensure that the necessary permissions for accessing Microsoft Teams are granted to your app. You might need admin consent for certain permissions.
+
+3. Set Up Microsoft Graph Client
+Install the msal and requests packages to handle authentication and API calls.
+
+sh
+Copy code
+pip install msal requests
+Create a script to authenticate and interact with the Microsoft Graph API:
+
+ms_graph_client.py:
+
+python
+Copy code
+import msal
+import requests
+
+# Azure AD app credentials
+CLIENT_ID = 'your_client_id'
+CLIENT_SECRET = 'your_client_secret'
+TENANT_ID = 'your_tenant_id'
+
+# Microsoft Graph API endpoint
+GRAPH_API_ENDPOINT = 'https://graph.microsoft.com/v1.0'
+
+# Initialize MSAL confidential client
+app = msal.ConfidentialClientApplication(
+    CLIENT_ID,
+    authority=f'https://login.microsoftonline.com/{TENANT_ID}',
+    client_credential=CLIENT_SECRET
+)
+
+def acquire_token():
+    token_response = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
+    if 'access_token' in token_response:
+        return token_response['access_token']
+    else:
+        raise Exception("Could not acquire access token")
+
+def get_teams_messages(team_id, channel_id):
+    access_token = acquire_token()
+    url = f"{GRAPH_API_ENDPOINT}/teams/{team_id}/channels/{channel_id}/messages"
+    headers = {
+        'Authorization': f'Bearer {access_token}'
+    }
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.json()
+
+def send_teams_message(team_id, channel_id, message):
+    access_token = acquire_token()
+    url = f"{GRAPH_API_ENDPOINT}/teams/{team_id}/channels/{channel_id}/messages"
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    data = {
+        "body": {
+            "content": message
+        }
+    }
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    return response.json()
+4. Real-time Transcription and Q&A Integration
+Modify your Flask application to use the Microsoft Graph API for retrieving messages and sending responses.
+
+app.py:
+
+python
+Copy code
+from flask import Flask, request, jsonify
+from flask_socketio import SocketIO, emit
+from ms_graph_client import get_teams_messages, send_teams_message
+import threading
+import time
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+# Your team and channel IDs
+TEAM_ID = 'your_team_id'
+CHANNEL_ID = 'your_channel_id'
+
+transcripts = []
+
+def transcribe_audio():
+    global transcripts
+    while True:
+        messages = get_teams_messages(TEAM_ID, CHANNEL_ID)
+        for message in messages['value']:
+            timestamp = time.time()  # Use current time as timestamp
+            text = message['body']['content']
+            transcripts.append((timestamp, text))
+        time.sleep(10)  # Adjust as needed
+
+transcription_thread = threading.Thread(target=transcribe_audio)
+transcription_thread.start()
+
+def get_transcripts_up_to(timestamp):
+    return " ".join([text for ts, text in transcripts if ts <= timestamp])
+
+def get_transcript_chunks_up_to(timestamp):
+    return [(ts, text) for ts, text in transcripts if ts <= timestamp]
+
+def embed_transcript_chunks(chunks):
+    # Assuming you have a function to generate embeddings
+    return [generate_embeddings(chunk[1]) for chunk in chunks]
+
+@app.route('/ask', methods=['POST'])
+def ask():
+    data = request.json
+    question = data.get('question')
+    timestamp = data.get('timestamp')
+
+    chunks = get_transcript_chunks_up_to(timestamp)
+    if not chunks:
+        return jsonify({"answer": "No transcript available up to the provided timestamp"}), 400
+
+    transcript_texts = [chunk[1] for chunk in chunks]
+    transcript_embeddings = embed_transcript_chunks(chunks)
+
+    question_embedding = generate_embeddings(question)
+    similarities = [cosine_similarity(question_embedding.reshape(1, -1), te.reshape(1, -1)).flatten()[0] for te in transcript_embeddings]
+
+    most_similar_index = np.argmax(similarities)
+    context = transcript_texts[most_similar_index]
+
+    # Use the QA model hosted on your server
+    llm_small = Ollama(base_url='http://dcilda3414.amat.com:10008', model='llama3')
+    response = llm_small.predict(question=question, context=context)
+    answer = response['answer']
+
+    return jsonify({"answer": answer})
+
+@socketio.on('message')
+def handle_message(message):
+    question = message['question']
+    timestamp = message['timestamp']
+
+    chunks = get_transcript_chunks_up_to(timestamp)
+    if not chunks:
+        emit('response', {'answer': "No transcript available up to the provided timestamp"})
+        return
+
+    transcript_texts = [chunk[1] for chunk in chunks]
+    transcript_embeddings = embed_transcript_chunks(chunks)
+
+    question_embedding = generate_embeddings(question)
+    similarities = [cosine_similarity(question_embedding.reshape(1, -1), te.reshape(1, -1)).flatten()[0] for te in transcript_embeddings]
+
+    most_similar_index = np.argmax(similarities)
+    context = transcript_texts[most_similar_index]
+
+    llm_small = Ollama(base_url='http://dcilda3414.amat.com:10008', model='llama3')
+    response = llm_small.predict(question=question, context=context)
+    answer = response['answer']
+
+    emit('response', {'answer': answer})
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)
+Explanation
+Starting the Transcription Service:
+
+The transcription service will run in the background and fetch messages from the Microsoft Teams channel at regular intervals.
+This is done by the transcribe_audio function, which uses the get_teams_messages function to fetch messages and append them to the transcripts list.
+Real-time Q&A using WebSocket:
+
+Users can ask questions in real-time via WebSocket.
+The handle_message function processes these questions, finds the relevant transcript context up to the given timestamp, and generates an answer using the QA model.
+Q&A using HTTP API:
+
+Users can also ask questions via the /ask HTTP endpoint.
+The ask function processes these questions similarly to the WebSocket method but provides a synchronous response.
+Conclusion
+This setup allows your application to integrate with Microsoft Teams for real-time transcription and Q&A. You can use WebSockets for real-time interaction and HTTP API for synchronous requests, leveraging the capabilities of your hosted models and internal infrastructure.
