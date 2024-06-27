@@ -1,0 +1,131 @@
+Implementation
+Let's break this down into manageable parts:
+
+Loading and Parsing the Transcript File:
+Assuming the transcript file (transcript.txt) is in the format:
+
+kotlin
+Copy code
+00:00:05 Hello, welcome to the introduction of our video.
+00:00:10 In this section, we will cover the basics.
+...
+Generate Embeddings for Transcript Chunks:
+We'll use the provided cURL command to generate embeddings.
+
+Handle User Queries:
+We'll create an API endpoint to handle user queries and respond with context-aware answers.
+
+Here’s how you can implement this:
+
+transcript.txt:
+
+kotlin
+Copy code
+00:00:05 Hello, welcome to the introduction of our video.
+00:00:10 In this section, we will cover the basics.
+00:00:15 The main topics are as follows...
+...
+server.py:
+
+python
+Copy code
+from flask import Flask, request, jsonify
+from flask_socketio import SocketIO, emit
+import requests
+import numpy as np
+from datetime import datetime
+import re
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+# Load and parse transcript file
+def load_transcript(file_path):
+    transcripts = []
+    with open(file_path, 'r') as file:
+        for line in file:
+            timestamp, text = line.strip().split(' ', 1)
+            ts_seconds = time_str_to_seconds(timestamp)
+            transcripts.append((ts_seconds, text))
+    return transcripts
+
+def time_str_to_seconds(time_str):
+    x = time.strptime(time_str, '%H:%M:%S')
+    return int(datetime.timedelta(hours=x.tm_hour, minutes=x.tm_min, seconds=x.tm_sec).total_seconds())
+
+transcripts = load_transcript('transcript.txt')
+
+# Generate embeddings for transcript chunks
+def generate_embedding(text):
+    url = 'http://your_embedding_endpoint'
+    data = {
+        "model": "nomic-embed-text",
+        "prompt": text
+    }
+    response = requests.post(url, json=data)
+    return np.array(response.json()['embedding'])
+
+transcript_embeddings = [(ts, text, generate_embedding(text)) for ts, text in transcripts]
+
+def get_transcripts_up_to(timestamp):
+    return [(ts, text, embedding) for ts, text, embedding in transcript_embeddings if ts <= timestamp]
+
+@app.route('/ask', methods=['POST'])
+def ask():
+    data = request.json
+    question = data.get('question')
+    timestamp = data.get('timestamp')
+    
+    chunks = get_transcripts_up_to(timestamp)
+    if not chunks:
+        return jsonify({"answer": "No transcript available up to the provided timestamp"}), 400
+
+    question_embedding = generate_embedding(question)
+    similarities = [(ts, text, np.dot(question_embedding, embedding)) for ts, text, embedding in chunks]
+    most_relevant_chunk = max(similarities, key=lambda item: item[2])
+    context = most_relevant_chunk[1]
+
+    # Use the QA model hosted on your server
+    llm_small = Ollama(base_url='http://dcilda3414.amat.com:10008', model='llama3')
+    response = llm_small.predict(question=question, context=context)
+    answer = response['answer']
+
+    return jsonify({"answer": answer})
+
+@socketio.on('message')
+def handle_message(message):
+    question = message['question']
+    timestamp = message['timestamp']
+
+    chunks = get_transcripts_up_to(timestamp)
+    if not chunks:
+        emit('response', {'answer': "No transcript available up to the provided timestamp"})
+        return
+
+    question_embedding = generate_embedding(question)
+    similarities = [(ts, text, np.dot(question_embedding, embedding)) for ts, text, embedding in chunks]
+    most_relevant_chunk = max(similarities, key=lambda item: item[2])
+    context = most_relevant_chunk[1]
+
+    llm_small = Ollama(base_url='http://dcilda3414.amat.com:10008', model='llama3')
+    response = llm_small.predict(question=question, context=context)
+    answer = response['answer']
+
+    emit('response', {'answer': answer})
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True)
+Explanation
+Loading and Parsing the Transcript File:
+
+load_transcript reads the transcript file and converts each timestamp to seconds for easier comparison.
+Generate Embeddings for Transcript Chunks:
+
+generate_embedding sends the text to the embedding endpoint and retrieves the embedding.
+Handle User Queries:
+
+The /ask endpoint processes the user's question and timestamp.
+get_transcripts_up_to retrieves all transcript chunks up to the given timestamp.
+The question embedding is compared with transcript embeddings to find the most relevant context.
+The relevant context is used with the QA model to generate an answer.
+This setup ensures that your application can handle real-time Q&A based on pre-recorded transcripts while using the provided embedding service for context retrieval.
