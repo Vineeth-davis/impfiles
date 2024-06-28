@@ -155,3 +155,83 @@ class FileDownloadListAPIView(generics.ListAPIView):
         response['Content-Disposition'] = 'attachment; filename="ExcelInventoryReport.xlsx"'
         return response
 
+
+def create_report_excel(report, location):
+    workbook = xlsxwriter.Workbook(location)
+    
+    # Extract all unique sheet names (category name slugs)
+    sheetnames = set()
+    for result_data in report.values():
+        sheetnames.update(result_data['categories'].keys())
+    
+    for sheetname in sheetnames:
+        worksheet = workbook.add_worksheet(sheetname[:30])
+        worksheet.set_column('A:Z', 25)
+        bold = workbook.add_format({'bold': True})
+
+        # Write headers
+        headers = ['Hostname']
+        for result_data in report.values():
+            if sheetname in result_data['categories'] and result_data['categories'][sheetname]:
+                headers += result_data['categories'][sheetname][0].keys()
+                break
+
+        for col_num, header in enumerate(headers):
+            worksheet.write(0, col_num, header, bold)
+
+        row_num = 1
+        for result_id, result_data in report.items():
+            if sheetname in result_data['categories']:
+                for row in result_data['categories'][sheetname]:
+                    worksheet.write(row_num, 0, result_data['hostname'])  # Write the hostname
+                    for col_num, (key, value) in enumerate(row.items(), start=1):
+                        worksheet.write(row_num, col_num, value)
+                    row_num += 1
+
+    workbook.close()
+
+
+from rest_framework import generics
+from rest_framework.response import Response
+import os
+import xlsxwriter
+from django.http import HttpResponse
+from wsgiref.util import FileWrapper
+from myapp.models import Result  # Update with your actual models
+
+class FileDownloadListAPIView(generics.ListAPIView):
+    def post(self, request, *args, **kwargs):
+        result_ids = request.data.get('result_ids', [])
+        report = {}
+
+        for result_id in result_ids:
+            result = Result.objects.get(id=result_id)
+            categories = Result.Category.objects.filter(result=result).order_by('order')
+            rows = Result.Row.objects.filter(category__in=categories).order_by('order')
+            fields = Result.Field.objects.filter(row__in=rows)
+
+            result_data = {}
+            result_data['hostname'] = result.hostname
+            result_data['categories'] = {}
+
+            for category in categories:
+                rows = Result.Row.objects.filter(category=category).order_by('order')
+                rows_list = []
+                for row in rows:
+                    fields = Result.Field.objects.filter(row=row).order_by('order')
+                    fields_list = {}
+                    for field in fields:
+                        fields_list[field.attribute_slug] = field.value
+                    rows_list.append(fields_list)
+                result_data['categories'][category.name_slug] = rows_list
+
+            report[result_id] = result_data
+
+        location = os.path.join(BASE_DIR, "temp", "ExcelInventoryReport.xlsx")
+        create_report_excel(report, location)
+        document = open(location, 'rb')
+        response = HttpResponse(FileWrapper(document), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="ExcelInventoryReport.xlsx"'
+        return response
+
+
