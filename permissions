@@ -1,0 +1,123 @@
+Based on the information you've provided, I can't access the specific image you're referring to. However, I can give you a general solution on how to implement user permissions for your Field model in Django REST framework, ensuring by-default access and allowing retrieval of users with access.
+
+Here's the breakdown:
+
+1. Models:
+
+Python
+from django.contrib.auth.models import User
+from django.db import models
+
+class Field(models.Model):
+    # ... your existing fields for Field
+
+    def __str__(self):
+        return f"Field {self.id}"
+
+class FieldPermission(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    field = models.ForeignKey(Field, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ("user", "field")
+Use code with caution.
+content_copy
+Explanation:
+
+We've added a FieldPermission model to link User instances with the Field objects they have permission to access.
+The unique_together meta option ensures a user can only have one permission record for a specific Field.
+2. Serializers:
+
+Python
+from rest_framework import serializers
+
+class FieldSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Field
+        fields = "__all__"
+
+class FieldPermissionSerializer(serializers.ModelSerializer):
+    user = serializers.ReadOnlyField(source='user.username')
+    field = FieldSerializer()
+
+    class Meta:
+        model = FieldPermission
+        fields = ("id", "user", "field")
+Use code with caution.
+content_copy
+Explanation:
+
+The FieldSerializer serializes Field model instances.
+The FieldPermissionSerializer serializes FieldPermission model instances, including the username of the user and the nested Field serializer.
+3. Permissions:
+
+Python
+from rest_framework.permissions import BasePermission, IsAuthenticated
+
+class IsFieldPermitted(BasePermission):
+    """
+    Custom permission to check if a user has access to a specific Field.
+    """
+
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True  # Allow GET, HEAD, OPTIONS for everyone
+
+        field_id = view.kwargs.get("pk")
+        if not field_id:
+            return False  # Require specific Field ID for write operations
+
+        if request.user.is_authenticated:
+            return FieldPermission.objects.filter(user=request.user, field_id=field_id).exists()
+        else:
+            return False  # Non-authenticated users cannot modify or delete
+
+class FieldAdminPermission(BasePermission):
+    """
+    Permission to restrict Field administration to staff users.
+    """
+
+    def has_permission(self, request, view):
+        return request.user.is_staff
+Use code with caution.
+content_copy
+Explanation:
+
+We've created two custom permissions:
+IsFieldPermitted: This checks if the currently authenticated user has permission to access a specific Field instance (based on FieldPermission records). It allows GET, HEAD, and OPTIONS for everyone by default.
+FieldAdminPermission: This restricts administrative operations on Field (presumably through a viewset) to staff users only.
+4. ViewSets:
+
+Python
+from rest_framework.viewsets import ModelViewSet
+
+class FieldViewSet(ModelViewSet):
+    queryset = Field.objects.all()
+    serializer_class = FieldSerializer
+    permission_classes = [IsFieldPermitted]  # Default permission
+
+    def get_permissions(self):
+        if self.action in ["destroy", "update", "partial_update"]:
+            # Override permission for update/delete to require admin access
+            return [IsAuthenticated & FieldAdminPermission()]
+        return super().get_permissions()
+Use code with caution.
+content_copy
+Explanation:
+
+The FieldViewSet handles CRUD operations for Field instances.
+By default, it uses the IsFieldPermitted permission class, allowing everyone to view fields but requiring permission for modifications.
+The get_permissions method overrides permissions for update and delete actions, requiring both authentication and FieldAdminPermission (staff status).
+5. Assigning User Permissions (API):
+
+You can create a separate API endpoint to manage user permissions for fields. Here's an example:
+
+Python
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import Field, FieldPermission
+
+class AssignFieldPermissionView(APIView):
+    permission_classes = [IsAuthenticated & FieldAdminPermission]  #
+Use code with caution.
+content_copy
