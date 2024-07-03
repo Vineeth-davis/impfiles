@@ -177,3 +177,100 @@ class ProductViewSet(viewsets.ModelViewSet):
 Write tests to ensure the functionality works as expected.
 
 With this plan, you should have a solid foundation for the Software Version Management tool. Let me know if you'd like to dive into any specific part or need further assistance.
+
+
+
+
+
+1. Install django-filter
+First, install the django-filter package:
+
+sh
+Copy code
+pip install django-filter
+2. Configure Django to use django-filter
+Add django_filters to your INSTALLED_APPS in settings.py:
+
+python
+Copy code
+INSTALLED_APPS = [
+    ...
+    'django_filters',
+]
+3. Update the ProductViewSet to support filtering
+Modify your ProductViewSet to include a filter backend and define the fields that can be filtered. Create a filter class for more complex filtering logic.
+
+python
+Copy code
+# products/views.py
+
+from rest_framework import viewsets
+from .models import Product
+from .serializers import ProductSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.parsers import FileUploadParser
+import csv
+import json
+from io import StringIO
+import django_filters
+
+class ProductFilter(django_filters.FilterSet):
+    class Meta:
+        model = Product
+        fields = {
+            'product_line': ['exact', 'icontains'],
+            'platform': ['exact', 'icontains'],
+            'customer': ['exact', 'icontains'],
+        }
+
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = ProductFilter
+
+    @action(detail=False, methods=['post'], parser_classes=[FileUploadParser])
+    def import_products(self, request):
+        file = request.FILES['file']
+        if file.name.endswith('.csv'):
+            data = csv.DictReader(StringIO(file.read().decode('utf-8')))
+        elif file.name.endswith('.json'):
+            data = json.load(file)
+        else:
+            return Response({'error': 'Unsupported file format'}, status=400)
+
+        products = []
+        for row in data:
+            product = Product(
+                product_line=row['product_line'],
+                platform=row['platform'],
+                customer=row['customer'],
+                fab=row['fab'],
+                amat_tool_id=row.get('amat_tool_id'),
+                customer_tool_id=row.get('customer_tool_id'),
+                current_version=row['current_version'],
+                date=row['date'],
+            )
+            products.append(product)
+
+        Product.objects.bulk_create(products)
+        return Response({'status': 'imported'}, status=201)
+4. Using the Filtering API
+With the above setup, you can filter products by customer using query parameters in your API calls. Here's an example:
+
+API endpoint: /api/products/
+HTTP method: GET
+Query parameter: ?customer=<customer_name>
+For example, to filter products by a customer named "TSMC":
+
+bash
+Copy code
+GET /api/products/?customer=TSMC
+You can also combine multiple filters. For example, to filter by customer "TSMC" and product line "OPWI":
+
+bash
+Copy code
+GET /api/products/?customer=TSMC&product_line=OPWI
+This setup allows you to filter the Product table based on customer, product line, and platform, providing the necessary flexibility for querying the product data.
