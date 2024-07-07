@@ -275,6 +275,48 @@ Copy code
 GET /api/products/?customer=TSMC&product_line=OPWI
 This setup allows you to filter the Product table based on customer, product line, and platform, providing the necessary flexibility for querying the product data.
 
+@action(detail=False, methods=['put'])
+    def bulk_update(self, request):
+        data = request.data
+        if not isinstance(data, list):
+            return Response({'error': 'Expected a list of items'}, status=400)
+
+        update_count = 0
+        for item in data:
+            product_id = item.get('id')
+            if not product_id:
+                continue
+
+            try:
+                product = Product.objects.get(id=product_id)
+            except Product.DoesNotExist:
+                continue
+
+            serializer = ProductSerializer(product, data=item, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                update_count += 1
+
+        return Response({'status': f'{update_count} products updated'}, status=200)
+2. Bulk Update API Call
+To update multiple products in bulk, send a PUT request to the bulk_update endpoint with a JSON payload containing a list of product updates. Each item in the list should include the id of the product to be updated and the fields to be updated.
+
+Example Request
+Using requests library in Python:
+
+python
+Copy code
+import requests
+
+url = 'http://yourdomain.com/api/products/bulk_update/'
+data = [
+    {'id': 1, 'current_version': '10.2.2', 'customer_tool_id': 'CT001'},
+    {'id': 2, 'current_version': '10.3.0', 'customer_tool_id': 'CT002'}
+]
+
+response = requests.put(url, json=data)
+print(response.json())
+
 
 To integrate LDAP authentication into your Django project, you can use the django-auth-ldap package. This will allow you to configure your LDAP settings and set up the authentication backend. Here's how to do it step by step, using the provided configuration and code snippets as references.
 
