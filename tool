@@ -620,3 +620,122 @@ python manage.py runserver
 Use a tool like Postman or Curl to test the login and logout endpoints to ensure they are working correctly.
 
 By setting up these API endpoints, you can handle LDAP-based login and logout in your Django REST framework backend, and your frontend application can consume these endpoints to authenticate users. If you need any more help or run into issues, feel free to ask!
+
+
+
+Based on the error message from the terminal window, it appears that the LDAP authentication is failing with "user DN/password rejected by LDAP server." This indicates that the authenticate method is not working as expected with the LDAP configuration. However, the LDAP search part is working correctly, and you're able to retrieve user details.
+
+Let's adjust the login view to manually authenticate the user using the LDAP search result and then create or retrieve the token.
+
+Adjusting the Login View
+Manually Authenticate the User:
+Since the authenticate method isn't working, we'll manually check the LDAP results and then log in the user.
+
+Return Token After Successful Authentication:
+If the LDAP authentication succeeds, generate or retrieve the token and return it.
+
+Here is the revised LDAPLoginView:
+
+python
+Copy code
+# views.py
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth import authenticate, login, get_user_model
+from rest_framework.authtoken.models import Token
+from rest_framework.permissions import AllowAny
+import ldap
+from django.conf import settings
+
+User = get_user_model()
+
+class LDAPLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email').lower()
+        password = request.data.get('password')
+
+        try:
+            server = settings.AUTH_LDAP_SERVER_URI
+            conn = ldap.initialize(server)
+            conn.simple_bind_s(f"mail={email},dc=amat,dc=com", password)
+            
+            search_filter = f"(&(objectClass=*)(mail={email}))"
+            base_dn = "dc=amat,dc=com"
+            search_attr = ["mail", "department", "manager", "title", "sAMAccountName", "displayName"]
+            ldap_result_id = conn.search(base_dn, ldap.SCOPE_SUBTREE, search_filter, search_attr)
+            result_type, result_data = conn.result(ldap_result_id, 0)
+            
+            if result_type == ldap.RES_SEARCH_ENTRY:
+                user_data = result_data[0][1]
+                username = user_data['sAMAccountName'][0].decode('utf-8')
+
+                user, created = User.objects.get_or_create(username=username, email=email)
+                if created:
+                    user.set_password(password)
+                    user.save()
+
+                token, _ = Token.objects.get_or_create(user=user)
+                return Response({'token': token.key}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Invalid email or password'}, status=status.HTTP_400_BAD_REQUEST)
+
+        except ldap.LDAPError as e:
+            print(e)
+            return Response({'error': 'Invalid email or password'}, status=status.HTTP_400_BAD_REQUEST)
+Steps to Test
+Make Sure Token Authentication is Installed:
+
+sh
+Copy code
+pip install djangorestframework
+pip install djangorestframework-simplejwt
+pip install django-rest-auth
+Add Token Authentication Middleware:
+
+Ensure the following middleware is in your settings.py:
+
+python
+Copy code
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+Update URLs:
+
+Ensure the login URL is correctly included in your urls.py:
+
+python
+Copy code
+# urls.py
+
+from django.urls import path, include
+from .views import LDAPLoginView
+
+urlpatterns = [
+    path('api/login/', LDAPLoginView.as_view(), name='api_login'),
+    # Add other endpoints...
+]
+Test with Postman:
+
+Use Postman to send a POST request to api/login/ with email and password in the body as JSON.
+
+URL: http://yourdomain.com/api/login/
+Method: POST
+Headers: Content-Type: application/json
+Body:
+json
+Copy code
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+By adjusting the view to manually authenticate the user with LDAP and then handling token creation, you should be able to resolve the authentication issue. If you encounter any further issues, please share the error messages for additional troubleshooting.
