@@ -235,3 +235,57 @@ class FileDownloadListAPIView(generics.ListAPIView):
         return response
 
 
+
+
+
+In that case, we can use a more general approach to update the related fields, regardless of their names. We can use Django's model introspection to get the fields of the model and check if they are ManyToManyFields or ForeignKey fields.
+
+Here's an updated code snippet:
+```
+import json
+import uuid
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction
+from django.apps import apps
+from django.db.models.fields import ManyToManyField, ForeignKey
+
+def import_json_data(json_file):
+    with open(json_file, 'r') as f:
+        data = json.load(f)
+
+    # Create a mapping of old UUIDs to new UUIDs
+    uuid_mapping = {}
+
+    # Update UUIDs in the data
+    for model_data in data:
+        old_uuid = model_data['pk']
+        new_uuid = uuid.uuid4()
+        uuid_mapping[old_uuid] = new_uuid
+        model_data['pk'] = new_uuid
+
+        # Get the model class
+        model_class = apps.get_model(model_data['model'])
+
+        # Update related fields
+        for field in model_class._meta.get_fields():
+            if isinstance(field, (ManyToManyField, ForeignKey)):
+                field_name = field.name
+                if field_name in model_data:
+                    if isinstance(field, ManyToManyField):
+                        # ManyToManyField
+                        model_data[field_name] = [uuid_mapping.get(v, v) for v in model_data[field_name]]
+                    else:
+                        # ForeignKey
+                        model_data[field_name] = uuid_mapping.get(model_data[field_name], model_data[field_name])
+
+    # Dump the updated data to a new JSON file
+    with open('updated_data.json', 'w') as f:
+        json.dump(data, f, cls=DjangoJSONEncoder)
+
+    # Load the updated data into the database
+    with transaction.atomic():
+        call_command('loaddata', 'updated_data.json')
+```
+This code uses Django's model introspection to get the fields of the model and checks if they are ManyToManyFields or ForeignKey fields. If they are, it updates the related fields accordingly.
+
+This approach should work regardless of the names of the ManyToManyFields or ForeignKey fields in your models.
