@@ -373,3 +373,35 @@ def update_uuids(config_file):
 
 
 This version of the function uses a recursive helper function update_uuids_recursive to check if the value is a dictionary or a list, and if so, to recursively check its contents for old PIDs. This way, it can handle nested data structures of arbitrary depth.
+
+
+The error "unhashable type: 'dict'" occurs when you're trying to use a dictionary as a key in another dictionary. In this case, it's likely because the values in pk_mappings are dictionaries, not strings.
+
+To fix this, you need to ensure that the values in pk_mappings are strings, not dictionaries. Since the values are UUIDs, you can convert them to strings using the str() function.
+
+Here's an updated version of the update_uuids function that should fix the issue:
+
+
+def update_uuids(config_file):
+    data = json.loads(config_file)
+    pk_mappings = {model_obj['pk']: str(uuid.uuid4()) for model_obj in data}
+
+    def update_uuids_recursive(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if value in pk_mappings.values():
+                    obj[key] = [k for k, v in pk_mappings.items() if v == value][0]
+                else:
+                    update_uuids_recursive(value)
+        elif isinstance(obj, list):
+            for i, value in enumerate(obj):
+                if value in pk_mappings.values():
+                    obj[i] = [k for k, v in pk_mappings.items() if v == value][0]
+                else:
+                    update_uuids_recursive(value)
+
+    update_uuids_recursive(data)
+    return json.dumps(data)
+
+
+In this updated version, I've changed the line where pk_mappings is created to use str(uuid.uuid4()) instead of just uuid.uuid4(). This ensures that the values in pk_mappings are strings, not dictionaries. I've also updated the update_uuids_recursive function to check if the value is in pk_mappings.values() instead of pk_mappings, and to update the key with the corresponding key from pk_mappings.
