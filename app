@@ -289,3 +289,57 @@ def import_json_data(json_file):
 This code uses Django's model introspection to get the fields of the model and checks if they are ManyToManyFields or ForeignKey fields. If they are, it updates the related fields accordingly.
 
 This approach should work regardless of the names of the ManyToManyFields or ForeignKey fields in your models.
+
+
+
+Here's an updated version of the function that covers all related fields, including ManyToOneRel:
+
+```
+def import_json_data(json_file):
+    with open(json_file, 'r') as f:
+        data = json.load(f)
+
+    # Create a mapping of old UUIDs to new UUIDs
+    uuid_mapping = {}
+
+    # Update UUIDs in the data
+    for model_data in data:
+        old_uuid = model_data['pk']
+        new_uuid = uuid.uuid4()
+        uuid_mapping[old_uuid] = new_uuid
+        model_data['pk'] = new_uuid
+
+        # Get the model class
+        model_class = apps.get_model(model_data['model'])
+
+        # Update related fields
+        for field in model_class._meta.get_fields():
+            field_name = field.name
+            if field_name in model_data:
+                if isinstance(field, (ManyToManyField, ForeignKey)):
+                    if isinstance(field, ManyToManyField):
+                        # ManyToManyField
+                        model_data[field_name] = [uuid_mapping.get(v, v) for v in model_data[field_name]]
+                    else:
+                        # ForeignKey
+                        model_data[field_name] = uuid_mapping.get(model_data[field_name], model_data[field_name])
+                elif isinstance(field, OneToOneField):
+                    # OneToOneField
+                    model_data[field_name] = uuid_mapping.get(model_data[field_name], model_data[field_name])
+                elif isinstance(field, ManyToOneRel):
+                    # ManyToOneRel
+                    related_model_data = next((d for d in data if d['model'] == field.related_model.__name__ and d['pk'] == model_data[field_name]), None)
+                    if related_model_data:
+                        related_model_data['pk'] = uuid_mapping.get(related_model_data['pk'], related_model_data['pk'])
+                        model_data[field_name] = related_model_data['pk']
+
+    # Dump the updated data to a new JSON file
+    with open('updated_data.json', 'w') as f:
+        json.dump(data, f, cls=DjangoJSONEncoder)
+
+    # Load the updated data into the database
+    with transaction.atomic():
+        call_command('loaddata', 'updated_data.json')
+```
+
+This updated function now covers all related fields, including ManyToOneRel. It updates the UUIDs in the data, and then updates the related fields in the data using the `uuid_mapping`. Finally, it dumps the updated data to a new JSON file and loads it into the database.
