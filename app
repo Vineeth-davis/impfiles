@@ -1,25 +1,29 @@
+
+
+
+
 def update_uuids(config_file):
     data = json.loads(config_file)
-    pk_mappings = {model_obj['pk']: str(uuid.uuid4()) for model_obj in data}
+    pk_mappings = {str(model_obj['pk']): str(uuid.uuid4()) for model_obj in data}
 
     def update_uuids_recursive(obj):
         if isinstance(obj, dict):
             for key, value in obj.items():
-                if value in pk_mappings.keys():
+                if isinstance(value, str) and value in pk_mappings:
                     obj[key] = pk_mappings[value]
                 elif isinstance(value, (dict, list)):
                     update_uuids_recursive(value)
         elif isinstance(obj, list):
             for i, value in enumerate(obj):
-                if value in pk_mappings.keys():
+                if isinstance(value, str) and value in pk_mappings:
                     obj[i] = pk_mappings[value]
                 elif isinstance(value, (dict, list)):
                     update_uuids_recursive(value)
 
     update_uuids_recursive(data)
+    with open('pk_mappings.json', 'w') as f:
+        json.dump(pk_mappings, f)
     return json.dumps(data)
-
-
 
 
 def create_report_excel(report, location):
