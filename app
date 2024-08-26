@@ -433,3 +433,31 @@ def update_uuids(config_file):
 This version of the function correctly checks for the 'pk' key in dictionaries and updates its value if it exists in the pk_mappings dictionary. It also recursively traverses lists and dictionaries to ensure that all UUIDs are updated.
 
 Please try this updated function and let me know if you still encounter any issues.
+
+
+To update the UUIDs inside the "fields" dictionary, we need to modify the update_uuids_recursive function to check for UUIDs in the values of dictionaries, not just the keys. Here's an updated version of the function:
+
+
+def update_uuids(config_file):
+    data = json.loads(config_file)
+    pk_mappings = {model_obj['pk']: str(uuid.uuid4()) for model_obj in data}
+
+    def update_uuids_recursive(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if value in pk_mappings:
+                    obj[key] = pk_mappings[value]
+                elif isinstance(value, (dict, list)):
+                    update_uuids_recursive(value)
+        elif isinstance(obj, list):
+            for i, value in enumerate(obj):
+                if value in pk_mappings:
+                    obj[i] = pk_mappings[value]
+                elif isinstance(value, (dict, list)):
+                    update_uuids_recursive(value)
+
+    update_uuids_recursive(data)
+    return json.dumps(data)
+
+
+In this updated version, the function checks if the value of a dictionary item is in the pk_mappings dictionary, and if so, updates it. This should correctly update all UUIDs in the JSON data, including those inside the "fields" dictionary.
