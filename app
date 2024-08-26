@@ -1,3 +1,27 @@
+def update_uuids(config_file):
+    data = json.loads(config_file)
+    pk_mappings = {model_obj['pk']: str(uuid.uuid4()) for model_obj in data}
+
+    def update_uuids_recursive(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if value in pk_mappings.keys():
+                    obj[key] = pk_mappings[value]
+                elif isinstance(value, (dict, list)):
+                    update_uuids_recursive(value)
+        elif isinstance(obj, list):
+            for i, value in enumerate(obj):
+                if value in pk_mappings.keys():
+                    obj[i] = pk_mappings[value]
+                elif isinstance(value, (dict, list)):
+                    update_uuids_recursive(value)
+
+    update_uuids_recursive(data)
+    return json.dumps(data)
+
+
+
+
 def create_report_excel(report, location):
     workbook = xlsxwriter.Workbook(location)
     for result_id, result_data in report.items():
