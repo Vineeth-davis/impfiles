@@ -343,3 +343,33 @@ def import_json_data(json_file):
 ```
 
 This updated function now covers all related fields, including ManyToOneRel. It updates the UUIDs in the data, and then updates the related fields in the data using the `uuid_mapping`. Finally, it dumps the updated data to a new JSON file and loads it into the database.
+
+
+No, the above code does not handle all those cases. It only checks if the value is a direct match with an old PID, and doesn't recursively check if the value is a list or a dictionary that contains an old PID.
+
+Here's an updated version of the function that handles those cases:
+
+
+def update_uuids(config_file):
+    data = json.loads(config_file)
+    pk_mappings = {model_obj['pk']: uuid.uuid4() for model_obj in data}
+
+    def update_uuids_recursive(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if value in pk_mappings:
+                    obj[key] = pk_mappings[value]
+                else:
+                    update_uuids_recursive(value)
+        elif isinstance(obj, list):
+            for i, value in enumerate(obj):
+                if value in pk_mappings:
+                    obj[i] = pk_mappings[value]
+                else:
+                    update_uuids_recursive(value)
+
+    update_uuids_recursive(data)
+    return json.dumps(data)
+
+
+This version of the function uses a recursive helper function update_uuids_recursive to check if the value is a dictionary or a list, and if so, to recursively check its contents for old PIDs. This way, it can handle nested data structures of arbitrary depth.
