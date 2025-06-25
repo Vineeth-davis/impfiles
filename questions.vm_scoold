@@ -84,33 +84,55 @@
 							 title="Get AI Responses"><i class="fa fa-robot"></i> Get AI Responses</a>
 					</div>
 
-					<!-- AI Bot Selection Dropdown -->
+					<!-- AI Bot Selection Modal -->
 					<div class="mvl pvl center ai-bot-selection hide">
 						<div class="card-panel">
-							<h5 class="grey-text">Choose an AI Assistant:</h5>
+							<h5 class="grey-text">Choose AI Assistants:</h5>
+							<p class="grey-text">Select one or more AI assistants to get responses from:</p>
 							<div class="row">
 								<div class="col s12 m4">
-									<a href="#" class="btn waves-effect waves-light ai-bot-btn" data-bot="llmBot">
-										<i class="fa fa-brain"></i><br>LLM Bot<br>
-										<small>General AI Assistant</small>
-									</a>
+									<label class="ai-bot-label">
+										<input type="checkbox" class="filled-in ai-bot-checkbox" data-bot="llmBot">
+										<span class="ai-bot-card">
+											<div class="ai-bot-content">
+												<i class="fa fa-brain fa-2x blue-text"></i><br>
+												<strong>LLM Bot</strong><br>
+												<small>General AI Assistant</small>
+											</div>
+										</span>
+									</label>
 								</div>
 								<div class="col s12 m4">
-									<a href="#" class="btn waves-effect waves-light orange ai-bot-btn" data-bot="zenbot">
-										<i class="fa fa-cogs"></i><br>ZenBot<br>
-										<small>DevOps Specialist</small>
-									</a>
+									<label class="ai-bot-label">
+										<input type="checkbox" class="filled-in ai-bot-checkbox" data-bot="zenbot">
+										<span class="ai-bot-card">
+											<div class="ai-bot-content">
+												<i class="fa fa-cogs fa-2x orange-text"></i><br>
+												<strong>ZenBot</strong><br>
+												<small>DevOps Specialist</small>
+											</div>
+										</span>
+									</label>
 								</div>
 								<div class="col s12 m4">
-									<a href="#" class="btn waves-effect waves-light green ai-bot-btn" data-bot="confluencebot">
-										<i class="fa fa-book"></i><br>ConfluenceBot<br>
-										<small>Documentation Expert</small>
-									</a>
+									<label class="ai-bot-label">
+										<input type="checkbox" class="filled-in ai-bot-checkbox" data-bot="confluencebot">
+										<span class="ai-bot-card">
+											<div class="ai-bot-content">
+												<i class="fa fa-book fa-2x green-text"></i><br>
+												<strong>ConfluenceBot</strong><br>
+												<small>Documentation Expert</small>
+											</div>
+										</span>
+									</label>
 								</div>
 							</div>
 							<div class="row">
 								<div class="col s12 center">
-									<a href="#" class="btn-flat ai-cancel-btn">Cancel</a>
+									<a href="#" class="btn waves-effect waves-light ai-generate-responses disabled">
+										<i class="fa fa-magic"></i> Generate Responses
+									</a>
+									<a href="#" class="btn-flat ai-cancel-btn mll">Cancel</a>
 								</div>
 							</div>
 						</div>
@@ -240,6 +262,37 @@
 
 	.ai-bot-selection .col {
 		margin-bottom: 10px;
+	}
+
+	/* AI Bot checkbox styling */
+	.ai-bot-label {
+		cursor: pointer;
+		display: block;
+		margin-bottom: 10px;
+	}
+
+	.ai-bot-card {
+		display: block;
+		border: 2px solid #e0e0e0;
+		border-radius: 8px;
+		padding: 15px;
+		transition: all 0.3s ease;
+		text-align: center;
+		background: white;
+	}
+
+	.ai-bot-label:hover .ai-bot-card {
+		border-color: #2196f3;
+		background-color: #f5f5f5;
+	}
+
+	.ai-bot-checkbox:checked + .ai-bot-card {
+		border-color: #2196f3;
+		background-color: #e3f2fd;
+	}
+
+	.ai-bot-content {
+		line-height: 1.4;
 	}
 
 	/* AI response styling to match regular post styling */
@@ -425,6 +478,7 @@
 		// Show AI bot selection
 		$('.ai-response-btn').click(function(e) {
 			e.preventDefault();
+			e.stopPropagation();
 			console.log('AI response button clicked');
 			$('.ai-bot-selection').removeClass('hide');
 			$(this).addClass('hide');
@@ -433,131 +487,174 @@
 		// Cancel AI bot selection
 		$('.ai-cancel-btn').click(function(e) {
 			e.preventDefault();
+			e.stopPropagation();
 			console.log('AI cancel button clicked');
 			$('.ai-bot-selection').addClass('hide');
 			$('.ai-response-btn').removeClass('hide');
-			$('.ai-responses-container').addClass('hide');
+			// Clear all checkboxes
+			$('.ai-bot-checkbox').prop('checked', false);
+			// Disable generate button
+			$('.ai-generate-responses').addClass('disabled');
 		});
 
-		// Handle AI bot selection
-		$('.ai-bot-btn').click(function(e) {
+		// Handle checkbox changes to enable/disable generate button
+		$('.ai-bot-checkbox').change(function() {
+			var checkedCount = $('.ai-bot-checkbox:checked').length;
+			if (checkedCount > 0) {
+				$('.ai-generate-responses').removeClass('disabled');
+			} else {
+				$('.ai-generate-responses').addClass('disabled');
+			}
+		});
+
+		// Handle multiple AI bot response generation
+		$('.ai-generate-responses').click(function(e) {
 			e.preventDefault();
-			console.log('AI bot button clicked');
-			var $btn = $(this);
-			var botType = $btn.data('bot');
+			e.stopPropagation();
+
+			if ($(this).hasClass('disabled')) {
+				return;
+			}
+
+			console.log('Generate responses button clicked');
+			var checkedBots = [];
+			$('.ai-bot-checkbox:checked').each(function() {
+				checkedBots.push($(this).data('bot'));
+			});
+
+			if (checkedBots.length === 0) {
+				if (typeof M !== 'undefined' && M.toast) {
+					M.toast({html: 'Please select at least one AI assistant!', classes: 'orange'});
+				} else {
+					alert('Please select at least one AI assistant!');
+				}
+				return;
+			}
+
+			// Hide selection and show responses container
+			$('.ai-bot-selection').addClass('hide');
+			$('.ai-responses-container').removeClass('hide');
+
+			// Generate responses for all selected bots
+			var delay = 0;
+			for (var i = 0; i < checkedBots.length; i++) {
+				(function(botType, index) {
+					setTimeout(function() {
+						generateBotResponse(botType);
+					}, delay);
+					delay += 800; // Stagger responses by 800ms
+				})(checkedBots[i], i);
+			}
+
+			// Clear selections
+			$('.ai-bot-checkbox').prop('checked', false);
+			$('.ai-generate-responses').addClass('disabled');
+		});
+
+		// Function to generate a single bot response
+		function generateBotResponse(botType) {
 			var response = aiResponses[botType];
-			console.log('Bot type:', botType, 'Response:', response);
+			if (!response) {
+				console.error('No response found for bot type:', botType);
+				return;
+			}
 
 			// Check if this bot has already responded
 			if ($('#ai-responses-list .postbox.' + response.cssClass).length > 0) {
 				if (typeof M !== 'undefined' && M.toast) {
 					M.toast({html: response.title + ' has already provided a response!', classes: 'orange'});
 				} else {
-					alert(response.title + ' has already provided a response!');
+					console.log(response.title + ' has already provided a response!');
 				}
 				return;
 			}
 
-			if (response) {
-				// Show loading state
-				var originalHtml = $btn.html();
-				$btn.html('<i class="fa fa-spinner fa-spin"></i><br>Generating...<br><small>Please wait</small>');
-				$btn.addClass('disabled');
+			// Generate a unique ID for this response
+			var responseId = 'ai-response-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+			var currentDate = new Date();
+			var dateStr = currentDate.toLocaleDateString();
+			var timeStr = currentDate.toLocaleTimeString();
 
-				// Simulate AI thinking time
-				setTimeout(function() {
-					// Hide selection and show responses
-					$('.ai-bot-selection').addClass('hide');
-					$('.ai-responses-container').removeClass('hide');
+			// Create response HTML that mimics the postbox structure
+			var responseHtml = '<div id="' + responseId + '" class="postbox airesponse ' + response.cssClass + '">' +
+				'<hr>' +
+				'<div id="post-' + responseId + '" class="viewbox mbm">' +
+				'<div class="postbody pvs">' +
+				response.body +
+				'</div>' +
+				'<div class="row mbn">' +
+				'<div class="col s4 m4 l4">' +
+				'<div class="left mtm mrl approve-answer-btn">' +
+				'<span class="grey-text"><i class="fa fa-robot fa-3x" title="AI Generated Response"></i></span>' +
+				'</div>' +
+				'<div class="hugeText mtm center-align grey-text">' +
+				'<i class="fa fa-thumbs-up"></i><br>' +
+				'<span>AI</span>' +
+				'</div>' +
+				'</div>' +
+				'<div class="col s8 m3 l4">' +
+				'<div class="mtm right-align">' +
+				'<div>Generated ' + dateStr + ' at ' + timeStr + '</div>' +
+				'<div><small class="blue-text"><i class="fa fa-robot"></i> AI Generated Response</small></div>' +
+				'</div>' +
+				'</div>' +
+				'<div class="col s8 m5 l4">' +
+				'<div class="pam">' +
+				'<div class="row mbn valign-wrapper">' +
+				'<div class="col s3">' +
+				'<div class="circle ' + response.cssClass.replace('bot-', '') + ' white-text center-align" style="width: 40px; height: 40px; line-height: 40px;">' +
+				'<i class="fa ' + response.icon + '"></i>' +
+				'</div>' +
+				'</div>' +
+				'<div class="col s9">' +
+				'<div class="smallText">' +
+				'<strong>' + response.title + '</strong><br>' +
+				'<span class="grey-text">AI Assistant</span>' +
+				'</div>' +
+				'</div>' +
+				'</div>' +
+				'</div>' +
+				'</div>' +
+				'</div>' +
+				'<div class="row">' +
+				'<div class="col s12">' +
+				'<div class="lightborder pam post-actions">' +
+				'<div class="right">' +
+				'<a href="#post-' + responseId + '" title="Copy permalink" class="permalink">' +
+				'<i class="fa fa-share-square"></i>' +
+				'</a>' +
+				'</div>' +
+				'<span class="grey-text">' +
+				'<i class="fa fa-info-circle"></i> This response was generated by an AI assistant and may not be entirely accurate.' +
+				'</span>' +
+				'</div>' +
+				'</div>' +
+				'</div>' +
+				'</div>' +
+				'</div>';
 
-					// Generate a unique ID for this response
-					var responseId = 'ai-response-' + Date.now();
-					var currentDate = new Date();
-					var dateStr = currentDate.toLocaleDateString();
-					var timeStr = currentDate.toLocaleTimeString();
+			// Add to responses container
+			$('#ai-responses-list').append(responseHtml);
 
-					// Create response HTML that mimics the postbox structure
-					var responseHtml = '<div id="' + responseId + '" class="postbox airesponse ' + response.cssClass + '">' +
-						'<hr>' +
-						'<div id="post-' + responseId + '" class="viewbox mbm">' +
-						'<div class="postbody pvs">' +
-						response.body +
-						'</div>' +
-						'<div class="row mbn">' +
-						'<div class="col s4 m4 l4">' +
-						'<div class="left mtm mrl approve-answer-btn">' +
-						'<span class="grey-text"><i class="fa fa-robot fa-3x" title="AI Generated Response"></i></span>' +
-						'</div>' +
-						'<div class="hugeText mtm center-align grey-text">' +
-						'<i class="fa fa-thumbs-up"></i><br>' +
-						'<span>AI</span>' +
-						'</div>' +
-						'</div>' +
-						'<div class="col s8 m3 l4">' +
-						'<div class="mtm right-align">' +
-						'<div>Generated ' + dateStr + ' at ' + timeStr + '</div>' +
-						'<div><small class="blue-text"><i class="fa fa-robot"></i> AI Generated Response</small></div>' +
-						'</div>' +
-						'</div>' +
-						'<div class="col s8 m5 l4">' +
-						'<div class="pam">' +
-						'<div class="row mbn valign-wrapper">' +
-						'<div class="col s3">' +
-						'<div class="circle ' + response.cssClass.replace('bot-', '') + ' white-text center-align" style="width: 40px; height: 40px; line-height: 40px;">' +
-						'<i class="fa ' + response.icon + '"></i>' +
-						'</div>' +
-						'</div>' +
-						'<div class="col s9">' +
-						'<div class="smallText">' +
-						'<strong>' + response.title + '</strong><br>' +
-						'<span class="grey-text">AI Assistant</span>' +
-						'</div>' +
-						'</div>' +
-						'</div>' +
-						'</div>' +
-						'</div>' +
-						'</div>' +
-						'<div class="row">' +
-						'<div class="col s12">' +
-						'<div class="lightborder pam post-actions">' +
-						'<div class="right">' +
-						'<a href="#post-' + responseId + '" title="Copy permalink" class="permalink">' +
-						'<i class="fa fa-share-square"></i>' +
-						'</a>' +
-						'</div>' +
-						'<span class="grey-text">' +
-						'<i class="fa fa-info-circle"></i> This response was generated by an AI assistant and may not be entirely accurate.' +
-						'</span>' +
-						'</div>' +
-						'</div>' +
-						'</div>' +
-						'</div>' +
-						'</div>';
-
-					// Add to responses container
-					$('#ai-responses-list').append(responseHtml);
-
-					// Initialize materialize tooltips for the new content
-					$('[data-tooltip]').tooltip();
-
-					// Scroll to the new response
-					$('html, body').animate({
-						scrollTop: $('.ai-responses-container').offset().top - 100
-					}, 500);
-
-					// Show a success toast
-					if (typeof M !== 'undefined' && M.toast) {
-						M.toast({html: response.title + ' response generated!', classes: 'green'});
-					} else {
-						console.log(response.title + ' response generated!');
-					}
-
-					// Reset button state
-					$btn.html(originalHtml);
-					$btn.removeClass('disabled');
-				}, 1500); // 1.5 second delay to simulate AI processing
+			// Initialize materialize tooltips for the new content
+			if (typeof $ !== 'undefined' && $.fn.tooltip) {
+				$('[data-tooltip]').tooltip();
 			}
-		});
+
+			// Scroll to the new response
+			if ($('.ai-responses-container').length > 0) {
+				$('html, body').animate({
+					scrollTop: $('.ai-responses-container').offset().top - 100
+				}, 500);
+			}
+
+			// Show a success toast
+			if (typeof M !== 'undefined' && M.toast) {
+				M.toast({html: response.title + ' response generated!', classes: 'green'});
+			} else {
+				console.log(response.title + ' response generated!');
+			}
+		}
 
 		// Clear all AI responses
 		$('.ai-clear-responses').click(function(e) {
@@ -575,7 +672,9 @@
 		// Get more responses - show bot selection again
 		$('.ai-get-more').click(function(e) {
 			e.preventDefault();
+			e.stopPropagation();
 			$('.ai-bot-selection').removeClass('hide');
+			$('.ai-response-btn').addClass('hide');
 		});
 	}
 
