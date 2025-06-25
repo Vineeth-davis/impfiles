@@ -294,7 +294,20 @@
 </style>
 
 <script>
-	$(document).ready(function() {
+	// Wait for jQuery to be available
+	function initAIResponses() {
+		if (typeof $ === 'undefined') {
+			setTimeout(initAIResponses, 100);
+			return;
+		}
+
+		console.log('AI Responses script initialized');
+
+		// Check if elements exist
+		if ($('.ai-response-btn').length === 0) {
+			console.log('AI response button not found');
+			return;
+		}
 		// AI Bot responses data
 		var aiResponses = {
 			llmBot: {
@@ -412,6 +425,7 @@
 		// Show AI bot selection
 		$('.ai-response-btn').click(function(e) {
 			e.preventDefault();
+			console.log('AI response button clicked');
 			$('.ai-bot-selection').removeClass('hide');
 			$(this).addClass('hide');
 		});
@@ -419,6 +433,7 @@
 		// Cancel AI bot selection
 		$('.ai-cancel-btn').click(function(e) {
 			e.preventDefault();
+			console.log('AI cancel button clicked');
 			$('.ai-bot-selection').addClass('hide');
 			$('.ai-response-btn').removeClass('hide');
 			$('.ai-responses-container').addClass('hide');
@@ -427,13 +442,19 @@
 		// Handle AI bot selection
 		$('.ai-bot-btn').click(function(e) {
 			e.preventDefault();
+			console.log('AI bot button clicked');
 			var $btn = $(this);
 			var botType = $btn.data('bot');
 			var response = aiResponses[botType];
+			console.log('Bot type:', botType, 'Response:', response);
 
 			// Check if this bot has already responded
 			if ($('#ai-responses-list .postbox.' + response.cssClass).length > 0) {
-				M.toast({html: response.title + ' has already provided a response!', classes: 'orange'});
+				if (typeof M !== 'undefined' && M.toast) {
+					M.toast({html: response.title + ' has already provided a response!', classes: 'orange'});
+				} else {
+					alert(response.title + ' has already provided a response!');
+				}
 				return;
 			}
 
@@ -525,7 +546,11 @@
 					}, 500);
 
 					// Show a success toast
-					M.toast({html: response.title + ' response generated!', classes: 'green'});
+					if (typeof M !== 'undefined' && M.toast) {
+						M.toast({html: response.title + ' response generated!', classes: 'green'});
+					} else {
+						console.log(response.title + ' response generated!');
+					}
 
 					// Reset button state
 					$btn.html(originalHtml);
@@ -540,7 +565,11 @@
 			$('#ai-responses-list').empty();
 			$('.ai-responses-container').addClass('hide');
 			$('.ai-response-btn').removeClass('hide');
-			M.toast({html: 'All AI responses cleared!', classes: 'orange'});
+			if (typeof M !== 'undefined' && M.toast) {
+				M.toast({html: 'All AI responses cleared!', classes: 'orange'});
+			} else {
+				console.log('All AI responses cleared!');
+			}
 		});
 
 		// Get more responses - show bot selection again
@@ -548,5 +577,17 @@
 			e.preventDefault();
 			$('.ai-bot-selection').removeClass('hide');
 		});
-	});
+	}
+
+	// Initialize when DOM is ready or immediately if jQuery is available
+	if (typeof $ !== 'undefined') {
+		$(document).ready(initAIResponses);
+	} else {
+		// Fallback for when jQuery loads later
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', initAIResponses);
+		} else {
+			initAIResponses();
+		}
+	}
 </script>
