@@ -1,0 +1,583 @@
+<div class="page-wrapper">
+	<div class="row questionpage">
+		<div class="col s12 l9">
+			<span class="grey-text">
+			#if($showPost.location && !$showPost.location.isEmpty() && $scooldUtils.isNearMeFeatureEnabled())
+				<i class="fa fa-map-marker grey-text tooltipped mrs" data-tooltip="$showPost.location"></i>
+			#end
+
+			#if($showPost.space && !$scooldUtils.isDefaultSpace($showPost.space))
+				<strong class="grey-text">$scooldUtils.getSpaceName($!showPost.space)</strong> /
+			#end
+			#if ($showPost.answercount > 0)
+				#if ($showPost.answerid && !$showPost.answerid.isEmpty())
+					<i class="fa fa-check-circle tooltipped" data-tooltip="Approved answer"></i>
+				#end
+				$!lang.get("posts.answered")
+			#else
+				$!lang.get("posts.unanswered")
+			#end
+			#if($showPost.deprecated)
+				/ <strong class="orange-text">$!lang.get('deprecated')</strong>
+			#end
+			</span>
+			<div id="post-title" class="largeText">
+				#if($showPost.isReply())
+					<a href="$!showPost.getPostLinkForRedirect()" class="tooltipped" data-tooltip="⮪ $!lang.get('backtopost')">
+						<i class="fa fa-reply smallText grey-text"></i> $!{showPost.title}
+					</a>
+				#else
+					$!{showPost.title}
+				#end
+			</div>
+			<hr>
+			#ajaxloading(true)
+			<div class="mbl pbl">
+				#postbox($showPost $showPost)
+			</div>
+
+			#if ($showPost.deprecated)
+			<div class="center card pvs phl mediumText">
+				<p class="grey-text text-darken-2">
+					<i class="fa fa-exclamation-circle orange-text"></i> <strong>$!lang.get('deprecated'):</strong> $!lang.get("posts.deprecated")
+				</p>
+			</div>
+			#end
+
+			#if (!$showPost.isReply())
+				#if ($answerslist && !$answerslist.isEmpty()) #set($hideAnswersHead = "") #else #set($hideAnswersHead = "hide")#end
+				<div class="answers-head $!{hideAnswersHead}">
+					#set($sortarr = {'votes': "", 'newest': ""} )
+					#setsortbyselection($sortarr 'votes')
+					<span class="right">
+						<a href="$!showPost.getPostLinkForRedirect()#sortorderparam('?')" title="Most voted answers"
+							 class="chip $sortarr.votes">#sortordericon() $!lang.get("votes")</a>
+						<a href="$!showPost.getPostLinkForRedirect()?sortby=newest#sortorderparam('&' 'newest')" title="Newest answers"
+							 class="chip $sortarr.newest">#sortordericon("newest") $!lang.get("newest")</a>
+					</span>
+					<h3 class="grey-text">$!lang.get("answers.title") #showcount($itemcount.count)</h3>
+				</div>
+
+				#paginate("replies" $itemcount "" "page")
+
+				#if(!$showPost.isClosed())
+					#if($request.servletPath.endsWith("/write"))
+						#set($answerBoxHideClass = "")
+						#set($showAnswerBoxClass = "hide")
+					#else
+						#set($answerBoxHideClass = "hide")
+						#set($showAnswerBoxClass = "")
+					#end
+					#if(!$authenticated)#set($showAnswerBoxClass = "")#end
+
+					<div class="mvl pvl center $!{showAnswerBoxClass}">
+						#if ($authenticated)
+							<a href="#write-post" class="btn waves-effect waves-light show-answer-question-form"
+								 title="Answer this question"><i class="fa fa-pencil"></i> $!lang.get("posts.writeanswer")</a>
+						#else
+							<a href="$signinlink?returnto=$!{returnto.replaceAll('/write', '')}/write" rel="nofollow" class="btn waves-effect waves-light"
+								 title="Answer this question"><i class="fa fa-pencil"></i> $!lang.get("posts.writeanswer")</a>
+						#end
+
+						<!-- AI Responses Button -->
+						<a href="#" class="btn waves-effect waves-light blue-grey ai-response-btn mll"
+							 title="Get AI Responses"><i class="fa fa-robot"></i> Get AI Responses</a>
+					</div>
+
+					<!-- AI Bot Selection Dropdown -->
+					<div class="mvl pvl center ai-bot-selection hide">
+						<div class="card-panel">
+							<h5 class="grey-text">Choose an AI Assistant:</h5>
+							<div class="row">
+								<div class="col s12 m4">
+									<a href="#" class="btn waves-effect waves-light ai-bot-btn" data-bot="llmBot">
+										<i class="fa fa-brain"></i><br>LLM Bot<br>
+										<small>General AI Assistant</small>
+									</a>
+								</div>
+								<div class="col s12 m4">
+									<a href="#" class="btn waves-effect waves-light orange ai-bot-btn" data-bot="zenbot">
+										<i class="fa fa-cogs"></i><br>ZenBot<br>
+										<small>DevOps Specialist</small>
+									</a>
+								</div>
+								<div class="col s12 m4">
+									<a href="#" class="btn waves-effect waves-light green ai-bot-btn" data-bot="confluencebot">
+										<i class="fa fa-book"></i><br>ConfluenceBot<br>
+										<small>Documentation Expert</small>
+									</a>
+								</div>
+							</div>
+							<div class="row">
+								<div class="col s12 center">
+									<a href="#" class="btn-flat ai-cancel-btn">Cancel</a>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- AI Responses Container -->
+					<div class="ai-responses-container hide">
+						<div class="row valign-wrapper">
+							<div class="col s6">
+								<h4 class="grey-text">AI Responses</h4>
+							</div>
+							<div class="col s6 right-align">
+								<a href="#" class="btn-flat ai-clear-responses grey-text">
+									<i class="fa fa-trash"></i> Clear All
+								</a>
+								<a href="#" class="btn-flat ai-get-more grey-text">
+									<i class="fa fa-plus"></i> Get More
+								</a>
+							</div>
+						</div>
+						<div id="ai-responses-list"></div>
+					</div>
+
+					#if ($authenticated)
+						<div class="pvl mbm $!{answerBoxHideClass}">
+							<form method="post" id="answer-question-form">
+								#sectoken(false "CREATE_REPLY")
+								<a id="write-post"></a>
+								<h4 class="grey-text">
+									#if ($showPost.isQuestion()) $!lang.get("posts.youranswer")#else$!lang.get("feedback.writereply")#end
+								</h4>
+
+								<div class="emoji-picker-container">
+									<textarea class="edit-post" name="body" maxlength="$MAX_TEXT_LENGTH" minlength="10"></textarea>
+									#getmessagebox("red white-text" $error.get("body"))
+								</div>
+
+								<input type="hidden" name="answer" value="true">
+								<div>
+									<label for="follow-thread-check">
+										#if($showPost.followers && $showPost.followers.containsKey($authUser.user.id))
+											<input type="checkbox" class="filled-in" id="follow-thread-check" checked="checked">
+										#elseif(($authUser.replyEmailsEnabled && $scooldUtils.isMine($showPost, $authUser)))
+											<input type="checkbox" class="filled-in" id="follow-thread-check" checked="checked" disabled>
+										#else
+											<input type="checkbox" class="filled-in" id="follow-thread-check">
+										#end
+										<span><strong class="">$!lang.get('posts.emailme')</strong></span>
+									</label>
+								</div>
+
+								<button class="btn mtl waves-effect waves-light" type="submit">
+									<i class="fa fa-paper-plane left"></i>$!lang.get('post')
+								</button>
+							</form>
+						</div>
+					#end
+				#end
+
+				#if ($showPost.isClosed())
+					<div class="center mvm">
+						<h3 class="grey-text">
+								<i class="fa fa-lock"></i> $!lang.get("posts.closed")
+							</h3>
+					</div>
+				#end
+			#end
+		</div>
+
+		<div class="col m12 l3 s12">
+			<div class="card-panel">
+				<div class="mediumText pvs"><b>$!utils.abbreviateInt($!showPost.viewcount, 0)</b> $!lang.get('posts.views')</div>
+				<div class="mediumText pvs"><b>$!showPost.answercount</b>
+					#if($showPost.answercount == 1)$!lang.get('posts.answer')#else$!lang.get('answers.title')#end</div>
+				#if($showPost.type == "unapprovedquestion")
+					<div class="mediumText pvs orange-text"><i class="fa fa-exclamation-circle"></i>&nbsp; $!lang.get('posts.unapproved')</div>
+				#end
+				<div class="mediumText pvs tooltipped" data-tooltip="$!lang.get('posts.posted')">
+					<i class="fa fa-clock-o grey-text"></i> #formatdate($showPost.timestamp "")
+				</div>
+				#if($showPost.lastactivity)
+					<div class="mediumText pvs tooltipped" data-tooltip="$!lang.get('profile.about.lastseen')">
+						<i class="fa fa-pencil-square grey-text"></i> #formatdate($showPost.lastactivity "")
+					</div>
+				#end
+				#if($showPost.location && !$showPost.location.isEmpty() && $scooldUtils.isNearMeFeatureEnabled())
+					<div class="mediumText pvs"><i class="fa fa-map-marker grey-text"></i>&nbsp; $!showPost.location</div>
+				#end
+				#if($showPost.space && !$scooldUtils.isDefaultSpace($showPost.space))
+					<div class="mediumText pvs"><i class="fa fa-th-large grey-text"></i>&nbsp;
+						$scooldUtils.getSpaceName($!showPost.space)
+					</div>
+				#end
+				#if ($showPost.tags && !$showPost.tags.isEmpty() && !$showPost.tags.get(0).isEmpty())
+					<div class="mediumText pvs"><i class="fa fa-tags grey-text"></i> $!lang.get('tags.title')</div>
+					<div class="mtm tags-aside">#tagsbox($showPost $questionslink)</div>
+				#end
+			</div>
+
+			#if ($similarquestions && !$similarquestions.isEmpty())
+				<div class="card-panel similar mbl mediumText">
+					<div class="mbl">$!lang.get("posts.similar")</div>
+					#foreach($showSimilar in $similarquestions)
+						<div>
+							<small><i class="fa fa-caret-right grey-text"></i></small>
+							<a href="#getpostlink($showSimilar false false)" class="smallText">$!showSimilar.title</a>
+						</div>
+					#end
+				</div>
+			#end
+
+		</div>
+	</div>
+</div>
+
+<style>
+	.ai-responses-container {
+		margin-top: 20px;
+	}
+
+	.ai-bot-selection .btn {
+		height: auto;
+		padding: 15px;
+		line-height: 1.2;
+		white-space: normal;
+	}
+
+	.ai-bot-selection .col {
+		margin-bottom: 10px;
+	}
+
+	/* AI response styling to match regular post styling */
+	.postbox.airesponse {
+		border-left: 4px solid #2196f3;
+		background: #fafafa;
+	}
+
+	.postbox.airesponse.bot-zen {
+		border-left-color: #ff9800;
+	}
+
+	.postbox.airesponse.bot-confluence {
+		border-left-color: #4caf50;
+	}
+
+	.circle.llm {
+		background-color: #2196f3 !important;
+	}
+
+	.circle.zen {
+		background-color: #ff9800 !important;
+	}
+
+	.circle.confluence {
+		background-color: #4caf50 !important;
+	}
+
+	.ai-response-btn {
+		background-color: #607d8b !important;
+	}
+
+	.ai-response-btn:hover {
+		background-color: #455a64 !important;
+	}
+
+	/* Subtle animation for AI responses */
+	.postbox.airesponse {
+		animation: slideInFromTop 0.5s ease-out;
+	}
+
+	@keyframes slideInFromTop {
+		0% {
+			opacity: 0;
+			transform: translateY(-20px);
+		}
+		100% {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+</style>
+
+<script>
+	$(document).ready(function() {
+		// AI Bot responses data
+		const aiResponses = {
+			llmBot: {
+				title: "LLM Bot",
+				icon: "fa-brain",
+				cssClass: "bot-llm",
+				body: `
+					<p>Based on the context of your question, I can provide a comprehensive analysis:</p>
+
+					<h5>🔍 Understanding the Problem</h5>
+					<p>The issue you're dealing with is quite common in software development. Let me break down the key aspects:</p>
+
+					<h5>💡 Recommended Solution</h5>
+					<ol>
+						<li><strong>Initial Assessment:</strong> First, analyze the current state and identify the core requirements.</li>
+						<li><strong>Design Approach:</strong> Choose a scalable architecture that follows SOLID principles.</li>
+						<li><strong>Implementation Strategy:</strong> Start with a minimal viable solution and iterate.</li>
+						<li><strong>Testing Framework:</strong> Implement comprehensive unit and integration tests.</li>
+					</ol>
+
+					<h5>⚠️ Potential Pitfalls</h5>
+					<ul>
+						<li>Over-engineering the solution from the start</li>
+						<li>Neglecting error handling and edge cases</li>
+						<li>Not considering performance implications early</li>
+					</ul>
+
+					<h5>🚀 Next Steps</h5>
+					<p>I recommend starting with a proof of concept to validate your approach. Would you like me to elaborate on any specific aspect?</p>
+
+					<blockquote>
+						<p><em>"The best code is no code at all. The second best is code that's simple, readable, and maintainable."</em></p>
+					</blockquote>
+				`
+			},
+			zenbot: {
+				title: "ZenBot",
+				icon: "fa-cogs",
+				cssClass: "bot-zen",
+				body: `
+					<p>🧘 <strong>DevOps Wisdom:</strong> Let's approach this with the Zen of infrastructure and automation!</p>
+
+					<h5>🏗️ Infrastructure Considerations</h5>
+					<pre><code># Example Docker setup
+FROM node:16-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3000
+CMD ["npm", "start"]</code></pre>
+
+					<h5>🔄 CI/CD Pipeline</h5>
+					<p>Here's what I'd recommend for your deployment pipeline:</p>
+					<ul>
+						<li><strong>Build Stage:</strong> Run tests, security scans, and create artifacts</li>
+						<li><strong>Deploy Stage:</strong> Use blue-green or canary deployments</li>
+						<li><strong>Monitor Stage:</strong> Set up alerts and health checks</li>
+					</ul>
+
+					<h5>📊 Monitoring & Observability</h5>
+					<pre><code># Docker health check example
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
+  CMD curl -f http://localhost:3000/health || exit 1</code></pre>
+
+					<h5>🔐 Security Best Practices</h5>
+					<ul>
+						<li>Use least privilege principles</li>
+						<li>Implement proper secrets management</li>
+						<li>Regular security updates and vulnerability scanning</li>
+						<li>Network segmentation and firewall rules</li>
+					</ul>
+
+					<p><strong>Remember:</strong> <em>"Automate the boring stuff, monitor everything, and always have a rollback plan!"</em> 🚀</p>
+				`
+			},
+			confluencebot: {
+				title: "ConfluenceBot",
+				icon: "fa-book",
+				cssClass: "bot-confluence",
+				body: `
+					<div class="card-panel blue-grey lighten-5">
+						<h5>📖 Documentation Strategy</h5>
+						<p><em>Well-documented code is a gift to your future self and your team!</em></p>
+					</div>
+
+					<h5>📋 Problem Documentation Template</h5>
+
+					<table class="striped">
+						<thead>
+							<tr>
+								<th>Section</th>
+								<th>Description</th>
+								<th>Purpose</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><strong>Overview</strong></td>
+								<td>High-level description</td>
+								<td>Set context and scope</td>
+							</tr>
+							<tr>
+								<td><strong>Requirements</strong></td>
+								<td>Functional & non-functional needs</td>
+								<td>Define success criteria</td>
+							</tr>
+							<tr>
+								<td><strong>Solution</strong></td>
+								<td>Technical approach and architecture</td>
+								<td>Guide implementation</td>
+							</tr>
+							<tr>
+								<td><strong>Examples</strong></td>
+								<td>Code samples and use cases</td>
+								<td>Practical guidance</td>
+							</tr>
+						</tbody>
+					</table>
+
+					<h5>🔗 Related Documentation</h5>
+					<ul>
+						<li><strong>API Reference:</strong> Detailed endpoint documentation</li>
+						<li><strong>Setup Guide:</strong> Environment configuration steps</li>
+						<li><strong>Troubleshooting:</strong> Common issues and solutions</li>
+						<li><strong>FAQ:</strong> Frequently asked questions</li>
+					</ul>
+
+					<h5>✅ Documentation Checklist</h5>
+					<ul class="collection">
+						<li class="collection-item">☑️ Clear and concise titles</li>
+						<li class="collection-item">☑️ Step-by-step instructions</li>
+						<li class="collection-item">☑️ Code examples with comments</li>
+						<li class="collection-item">☑️ Visual diagrams when needed</li>
+						<li class="collection-item">☑️ Regular updates and reviews</li>
+					</ul>
+
+					<div class="card-panel orange lighten-4">
+						<p><strong>💡 Pro Tip:</strong> Use version control for your documentation and keep it close to the code it describes!</p>
+					</div>
+				`
+			}
+		};
+
+		// Show AI bot selection
+		$('.ai-response-btn').click(function(e) {
+			e.preventDefault();
+			$('.ai-bot-selection').removeClass('hide');
+			$(this).addClass('hide');
+		});
+
+		// Cancel AI bot selection
+		$('.ai-cancel-btn').click(function(e) {
+			e.preventDefault();
+			$('.ai-bot-selection').addClass('hide');
+			$('.ai-response-btn').removeClass('hide');
+			$('.ai-responses-container').addClass('hide');
+		});
+
+		// Handle AI bot selection
+		$('.ai-bot-btn').click(function(e) {
+			e.preventDefault();
+			const $btn = $(this);
+			const botType = $btn.data('bot');
+			const response = aiResponses[botType];
+
+			// Check if this bot has already responded
+			if ($(`#ai-responses-list .postbox.${response.cssClass}`).length > 0) {
+				M.toast({html: `${response.title} has already provided a response!`, classes: 'orange'});
+				return;
+			}
+
+			if (response) {
+				// Show loading state
+				const originalHtml = $btn.html();
+				$btn.html('<i class="fa fa-spinner fa-spin"></i><br>Generating...<br><small>Please wait</small>');
+				$btn.addClass('disabled');
+
+				// Simulate AI thinking time
+				setTimeout(() => {
+					// Hide selection and show responses
+					$('.ai-bot-selection').addClass('hide');
+					$('.ai-responses-container').removeClass('hide');
+
+					// Generate a unique ID for this response
+					const responseId = 'ai-response-' + Date.now();
+
+					// Create response HTML that mimics the postbox structure
+					const responseHtml = `
+						<div id="${responseId}" class="postbox airesponse ${response.cssClass}">
+							<hr>
+							<div id="post-${responseId}" class="viewbox mbm">
+								<div class="postbody pvs">
+									${response.body}
+								</div>
+
+								<div class="row mbn">
+									<div class="col s4 m4 l4">
+										<div class="left mtm mrl approve-answer-btn">
+											<span class="grey-text"><i class="fa fa-robot fa-3x" title="AI Generated Response"></i></span>
+										</div>
+										<div class="hugeText mtm center-align grey-text">
+											<i class="fa fa-thumbs-up"></i><br>
+											<span>AI</span>
+										</div>
+									</div>
+									<div class="col s8 m3 l4">
+										<div class="mtm right-align">
+											<div>Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
+											<div><small class="blue-text"><i class="fa fa-robot"></i> AI Generated Response</small></div>
+										</div>
+									</div>
+									<div class="col s8 m5 l4">
+										<div class="pam">
+											<div class="row mbn valign-wrapper">
+												<div class="col s3">
+													<div class="circle ${response.cssClass.replace('bot-', '')} white-text center-align" style="width: 40px; height: 40px; line-height: 40px;">
+														<i class="fa ${response.icon}"></i>
+													</div>
+												</div>
+												<div class="col s9">
+													<div class="smallText">
+														<strong>${response.title}</strong><br>
+														<span class="grey-text">AI Assistant</span>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div class="row">
+									<div class="col s12">
+										<div class="lightborder pam post-actions">
+											<div class="right">
+												<a href="#post-${responseId}" title="Copy permalink" class="permalink">
+													<i class="fa fa-share-square"></i>
+												</a>
+											</div>
+											<span class="grey-text">
+												<i class="fa fa-info-circle"></i> This response was generated by an AI assistant and may not be entirely accurate.
+											</span>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					`;
+
+					// Add to responses container
+					$('#ai-responses-list').append(responseHtml);
+
+					// Initialize materialize tooltips for the new content
+					$('[data-tooltip]').tooltip();
+
+					// Scroll to the new response
+					$('html, body').animate({
+						scrollTop: $('.ai-responses-container').offset().top - 100
+					}, 500);
+
+					// Show a success toast
+					M.toast({html: `${response.title} response generated!`, classes: 'green'});
+
+					// Reset button state
+					$btn.html(originalHtml);
+					$btn.removeClass('disabled');
+				}, 1500); // 1.5 second delay to simulate AI processing
+			}
+		});
+
+		// Clear all AI responses
+		$('.ai-clear-responses').click(function(e) {
+			e.preventDefault();
+			$('#ai-responses-list').empty();
+			$('.ai-responses-container').addClass('hide');
+			$('.ai-response-btn').removeClass('hide');
+			M.toast({html: 'All AI responses cleared!', classes: 'orange'});
+		});
+
+		// Get more responses - show bot selection again
+		$('.ai-get-more').click(function(e) {
+			e.preventDefault();
+			$('.ai-bot-selection').removeClass('hide');
+		});
+	});
+</script>
