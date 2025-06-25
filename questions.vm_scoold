@@ -78,84 +78,10 @@
 							<a href="$signinlink?returnto=$!{returnto.replaceAll('/write', '')}/write" rel="nofollow" class="btn waves-effect waves-light"
 								 title="Answer this question"><i class="fa fa-pencil"></i> $!lang.get("posts.writeanswer")</a>
 						#end
-					</div>
 
-					<!-- AI Responses Button - Separate Container -->
-					<div class="mvl pvl center $!{showAnswerBoxClass}" id="ai-button-container">
-						<a href="#" class="btn waves-effect waves-light blue-grey ai-response-btn"
+						<!-- AI Responses Button (in the same container) -->
+						<a href="#" class="btn waves-effect waves-light blue-grey ai-response-btn mll"
 							 title="Get AI Responses"><i class="fa fa-robot"></i> Get AI Responses</a>
-					</div>
-
-					<!-- AI Bot Selection Modal -->
-					<div class="mvl pvl center ai-bot-selection hide">
-						<div class="card-panel">
-							<h5 class="grey-text">Choose AI Assistants:</h5>
-							<p class="grey-text">Select one or more AI assistants to get responses from:</p>
-							<div class="row">
-								<div class="col s12 m4">
-									<label class="ai-bot-label">
-										<input type="checkbox" class="filled-in ai-bot-checkbox" data-bot="llmBot">
-										<span class="ai-bot-card">
-											<div class="ai-bot-content">
-												<i class="fa fa-brain fa-2x blue-text"></i><br>
-												<strong>LLM Bot</strong><br>
-												<small>General AI Assistant</small>
-											</div>
-										</span>
-									</label>
-								</div>
-								<div class="col s12 m4">
-									<label class="ai-bot-label">
-										<input type="checkbox" class="filled-in ai-bot-checkbox" data-bot="zenbot">
-										<span class="ai-bot-card">
-											<div class="ai-bot-content">
-												<i class="fa fa-cogs fa-2x orange-text"></i><br>
-												<strong>ZenBot</strong><br>
-												<small>DevOps Specialist</small>
-											</div>
-										</span>
-									</label>
-								</div>
-								<div class="col s12 m4">
-									<label class="ai-bot-label">
-										<input type="checkbox" class="filled-in ai-bot-checkbox" data-bot="confluencebot">
-										<span class="ai-bot-card">
-											<div class="ai-bot-content">
-												<i class="fa fa-book fa-2x green-text"></i><br>
-												<strong>ConfluenceBot</strong><br>
-												<small>Documentation Expert</small>
-											</div>
-										</span>
-									</label>
-								</div>
-							</div>
-							<div class="row">
-								<div class="col s12 center">
-									<a href="#" class="btn waves-effect waves-light ai-generate-responses disabled">
-										<i class="fa fa-magic"></i> Generate Responses
-									</a>
-									<a href="#" class="btn-flat ai-cancel-btn mll">Cancel</a>
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<!-- AI Responses Container -->
-					<div class="ai-responses-container hide">
-						<div class="row valign-wrapper">
-							<div class="col s6">
-								<h4 class="grey-text">AI Responses</h4>
-							</div>
-							<div class="col s6 right-align">
-								<a href="#" class="btn-flat ai-clear-responses grey-text">
-									<i class="fa fa-trash"></i> Clear All
-								</a>
-								<a href="#" class="btn-flat ai-get-more grey-text">
-									<i class="fa fa-plus"></i> Get More
-								</a>
-							</div>
-						</div>
-						<div id="ai-responses-list"></div>
 					</div>
 
 					#if ($authenticated)
@@ -253,11 +179,6 @@
 <style>
 	.ai-responses-container {
 		margin-top: 20px;
-	}
-
-	/* AI Button Container */
-	#ai-button-container {
-		margin-top: -10px !important; /* Reduce gap between buttons */
 	}
 
 	.ai-bot-selection .btn {
@@ -368,6 +289,7 @@
 			console.log('AI response button not found');
 			return;
 		}
+
 		// AI Bot responses data
 		var aiResponses = {
 			llmBot: {
@@ -482,50 +404,34 @@
 			}
 		};
 
-		// Show AI bot selection - Very specific event binding
+		// Handle AI response button click - show bot selection but don't interfere with the main button
 		$(document).on('click', '.ai-response-btn', function(e) {
 			e.preventDefault();
-			e.stopPropagation();
-			e.stopImmediatePropagation();
+
+			// IMPORTANT: Don't use stopPropagation as it may interfere with other handlers
+			// Only prevent default to avoid page jump
+
 			console.log('AI response button clicked');
+
+			// Show the AI bot selection
 			$('.ai-bot-selection').removeClass('hide');
-			$('#ai-button-container').addClass('hide');
 		});
 
-		// Ensure no interference with Write Answer button
-		$(document).on('click', '.show-answer-question-form', function(e) {
-			// Don't interfere with the normal flow - let scoold.js handle this
-			console.log('Write answer button clicked - AI should not interfere');
-			// Hide AI elements if they're showing
-			$('.ai-bot-selection').addClass('hide');
-			$('.ai-responses-container').addClass('hide');
-		});
-
-		// Debug: Log any clicks on the answer button container
-		$(document).on('click', 'div.mvl.pvl.center:not(#ai-button-container)', function(e) {
-			console.log('Click on answer button container, target:', e.target);
-			console.log('Target classes:', e.target.className);
-		});
-
-		// Debug: Log any clicks in the AI area
-		$(document).on('click', '#ai-button-container, .ai-bot-selection', function(e) {
-			console.log('Click in AI area, target:', e.target);
-			console.log('Target classes:', e.target.className);
-		});
+		// Ensure we don't interfere with Write Answer button's default behavior from scoold.js
+		// No need for a custom handler here - let the original code work
 
 		// Cancel AI bot selection
 		$(document).on('click', '.ai-cancel-btn', function(e) {
 			e.preventDefault();
-			e.stopPropagation();
-			e.stopImmediatePropagation();
 			console.log('AI cancel button clicked');
 			$('.ai-bot-selection').addClass('hide');
-			$('#ai-button-container').removeClass('hide');
 			// Clear all checkboxes
 			$('.ai-bot-checkbox').prop('checked', false);
 			// Disable generate button
 			$('.ai-generate-responses').addClass('disabled');
-		});		// Handle checkbox changes to enable/disable generate button
+		});
+
+		// Handle checkbox changes to enable/disable generate button
 		$(document).on('change', '.ai-bot-checkbox', function() {
 			var checkedCount = $('.ai-bot-checkbox:checked').length;
 			if (checkedCount > 0) {
@@ -538,8 +444,6 @@
 		// Handle multiple AI bot response generation
 		$(document).on('click', '.ai-generate-responses', function(e) {
 			e.preventDefault();
-			e.stopPropagation();
-			e.stopImmediatePropagation();
 
 			if ($(this).hasClass('disabled')) {
 				return;
@@ -688,10 +592,8 @@
 		// Clear all AI responses
 		$(document).on('click', '.ai-clear-responses', function(e) {
 			e.preventDefault();
-			e.stopPropagation();
 			$('#ai-responses-list').empty();
 			$('.ai-responses-container').addClass('hide');
-			$('#ai-button-container').removeClass('hide');
 			if (typeof M !== 'undefined' && M.toast) {
 				M.toast({html: 'All AI responses cleared!', classes: 'orange'});
 			} else {
@@ -702,21 +604,22 @@
 		// Get more responses - show bot selection again
 		$(document).on('click', '.ai-get-more', function(e) {
 			e.preventDefault();
-			e.stopPropagation();
 			$('.ai-bot-selection').removeClass('hide');
-			$('#ai-button-container').addClass('hide');
 		});
+
+		console.log('AI Responses script fully initialized');
 	}
 
-	// Initialize when DOM is ready or immediately if jQuery is available
-	if (typeof $ !== 'undefined') {
-		$(document).ready(initAIResponses);
-	} else {
-		// Fallback for when jQuery loads later
-		if (document.readyState === 'loading') {
-			document.addEventListener('DOMContentLoaded', initAIResponses);
-		} else {
+	// Initialize when DOM is ready
+	$(document).ready(function() {
+		// First check if jQuery is available
+		if (typeof $ !== 'undefined') {
+			console.log('jQuery is available, initializing AI features');
 			initAIResponses();
+		} else {
+			// Wait and retry
+			console.log('jQuery not available yet, waiting...');
+			setTimeout(initAIResponses, 500);
 		}
-	}
+	});
 </script>
