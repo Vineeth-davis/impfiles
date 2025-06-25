@@ -12,27 +12,8 @@
 			#if ($showPost.answercount > 0)
 				#if ($showPost.answerid && !$showPost.answerid.isEmpty())
 					<i class="fa fa-check-circle tooltipped" data-tooltip="Approved answer"></i>
-				#		// Clear all AI responses
-		$(document).on('click', '.ai-clear-responses', function(e) {
-			e.preventDefault();
-			e.stopPropagation();
-			$('#ai-responses-list').empty();
-			$('.ai-responses-container').addClass('hide');
-			$('#ai-button-container').removeClass('hide');
-			if (typeof M !== 'undefined' && M.toast) {
-				M.toast({html: 'All AI responses cleared!', classes: 'orange'});
-			} else {
-				console.log('All AI responses cleared!');
-			}
-		});
-
-		// Get more responses - show bot selection again
-		$(document).on('click', '.ai-get-more', function(e) {
-			e.preventDefault();
-			e.stopPropagation();
-			$('.ai-bot-selection').removeClass('hide');
-			$('#ai-button-container').addClass('hide');
-		});posts.answered")
+				#end
+				$!lang.get("posts.answered")
 			#else
 				$!lang.get("posts.unanswered")
 			#end
@@ -705,11 +686,12 @@
 		}
 
 		// Clear all AI responses
-		$('.ai-clear-responses').click(function(e) {
+		$(document).on('click', '.ai-clear-responses', function(e) {
 			e.preventDefault();
+			e.stopPropagation();
 			$('#ai-responses-list').empty();
 			$('.ai-responses-container').addClass('hide');
-			$('.ai-response-btn').removeClass('hide');
+			$('#ai-button-container').removeClass('hide');
 			if (typeof M !== 'undefined' && M.toast) {
 				M.toast({html: 'All AI responses cleared!', classes: 'orange'});
 			} else {
@@ -718,11 +700,11 @@
 		});
 
 		// Get more responses - show bot selection again
-		$('.ai-get-more').click(function(e) {
+		$(document).on('click', '.ai-get-more', function(e) {
 			e.preventDefault();
 			e.stopPropagation();
 			$('.ai-bot-selection').removeClass('hide');
-			$('.ai-response-btn').addClass('hide');
+			$('#ai-button-container').addClass('hide');
 		});
 	}
 
