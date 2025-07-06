@@ -1,0 +1,111 @@
+<div class="page-wrapper">
+	<h4 class="hide-on-large-only">Notifications #showcount($itemcount.count)</h4>
+
+	<div class="chips-container">
+		#set($sortarr = {'recent': "", 'unread': ""} )
+		#setsortbyselection($sortarr 'recent')
+		<a href="$notificationslink?sortby=recent#sortorderparamdesc('&' 'recent')" title="Most recent" class="chip $sortarr.recent">#sortordericon("recent") Recent</a>
+		<a href="$notificationslink?sortby=unread#sortorderparamsdesc('&' 'unread')" title="Unread only" class="chip $sortarr.unread">#sortordericon("unread") Unread</a>
+		#if($authenticated)
+		<a href="#" title="Mark all as read" class="chip orange-text mark-all-notifications-read"><i class="fa fa-check-circle"></i> <b>Mark all read</b></a>
+		#end
+	</div>
+
+	<h2 class="hide-on-med-and-down">Notifications #showcount($itemcount.count)</h2>
+
+	#if($notificationslist.isEmpty())
+		<div class="card-panel hugeText center-align grey-text">
+			<div class="em5v">
+				<i class="fa fa-bell-slash fa-3x"></i>
+				<br><br>
+				No notifications yet
+			</div>
+		</div>
+	#else
+		#macro(notificationspage )
+			#foreach($notification in $notificationslist)
+			<div class="col s12">
+				<div class="card-panel notification-card #if(!$notification.read)unread-notification#end" data-notification-id="$!notification.id">
+					<div class="row mbn">
+						<div class="col s12">
+							<div class="notification-header">
+								<span class="notification-type-badge">$!notification.type</span>
+								<span class="notification-time grey-text">$!utils.formatDate($notification.createdAt, "MMM dd, yyyy 'at' HH:mm")</span>
+								#if(!$notification.read)
+								<span class="new badge" data-badge-caption="new"></span>
+								#end
+							</div>
+							<div class="notification-message">
+								$!notification.message
+							</div>
+							#if($notification.questionTitle)
+							<div class="notification-question">
+								<i class="fa fa-question-circle"></i>
+								<a href="$!notification.questionURI" class="notification-link">$!notification.questionTitle</a>
+							</div>
+							#elseif($notification.objectURL)
+							<div class="notification-link-container">
+								<a href="$!notification.objectURL" class="notification-link">View Details</a>
+							</div>
+							#end
+							<div class="notification-actions">
+								#if(!$notification.read)
+								<a href="#" class="mark-as-read" data-notification-id="$!notification.id">Mark as read</a>
+								#end
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			#end
+		#end
+
+		<div class="row">
+			#notificationspage()
+		</div>
+	#end
+
+	#paginate()
+</div>
+
+<script nonce="$cspNonce">
+$(function() {
+	// Handle mark all as read
+	$('.mark-all-notifications-read').click(function(e) {
+		e.preventDefault();
+		$.post(CONTEXT_PATH + '/notifications/read-all', function() {
+			location.reload();
+		});
+	});
+
+	// Handle individual mark as read
+	$('.mark-as-read').click(function(e) {
+		e.preventDefault();
+		var notificationId = $(this).data('notification-id');
+		var card = $(this).closest('.notification-card');
+
+		$.post(CONTEXT_PATH + '/notifications/' + notificationId + '/read', function() {
+			card.removeClass('unread-notification');
+			$(this).remove();
+		}.bind(this));
+	});
+
+	// Handle notification clicks
+	$('.notification-card').click(function(e) {
+		if (!$(e.target).is('a')) {
+			var notificationId = $(this).data('notification-id');
+			var link = $(this).find('.notification-link').attr('href');
+
+			// Mark as read if unread
+			if ($(this).hasClass('unread-notification')) {
+				$.post(CONTEXT_PATH + '/notifications/' + notificationId + '/read');
+			}
+
+			// Navigate to link if available
+			if (link) {
+				window.location.href = link;
+			}
+		}
+	});
+});
+</script>
