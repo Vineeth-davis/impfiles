@@ -1,0 +1,15 @@
+You will design and build secure, scalable
+services that automate AWS infrastructure using Lambda, API Gateway, IAM, and Boto3.Key
+ResponsibilitiesBuild and deploy serverless REST APIs using API Gateway.Develop Python (3.12+)
+Lambda functions for AWS resource automation (EC2, S3, IAM, etc.).Use Boto3
+extensively—pagination, waiters, client/resource models, multi-service automation.Implement secure
+access using IAM, Secrets Manager, Cognito, and best-practice credential management.Integrate
+lightweight frontends (Amplify or S3/CloudFront) for internal dashboards and user interfaces.Ensure
+scalable, secure API design and manage multi-stage deployments.Required SkillsStrong hands-on
+experience with API Gateway, Lambda, IAM, Secrets Manager.Expert-level Python with AWS
+automation focus.Deep knowledge of Boto3, including advanced features.Experience building
+serverless applications in production.Solid understanding of RESTful API design and security best
+practices.Exposure to Amazon Q Business Boto3 SDK (preferred but not mandatory).Nice to
+HaveExperience with AWS Amplify, React, or frontend integration.Familiarity with S3/CloudFront
+hosting.Knowledge of Terraform/CloudFormation/CDK.AWS certifications (Solutions Architect,
+Developer, Security).Experience6+
