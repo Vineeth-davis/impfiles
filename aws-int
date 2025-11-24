@@ -13,3 +13,17 @@ practices.Exposure to Amazon Q Business Boto3 SDK (preferred but not mandatory).
 HaveExperience with AWS Amplify, React, or frontend integration.Familiarity with S3/CloudFront
 hosting.Knowledge of Terraform/CloudFormation/CDK.AWS certifications (Solutions Architect,
 Developer, Security).Experience6+
+
+
+
+Key Responsibilities: Design, develop, and maintain backend services using Python. Build and optimize RESTful APIs for application integration
+and data exchange. Work with relational and/or NoSQL databases for query development and data modeling. Ensure API performance, scalability,
+and security using best practices. Collaborate with frontend, DevOps, and QA teams to deliver end-to-end features. Write reusable, testable, and
+maintainable code following clean coding principles. Troubleshoot issues, perform debugging, and support production deployments. Integrate
+third-party APIs and external services as required. Maintain documentation and participate in code reviews.
+
+Required Qualifications: 5+ years of hands-on experience in Python backend development. Strong experience in REST API development using
+frameworks like Flask, FastAPI, or Django. Working knowledge of SQL databases (MySQL, PostgreSQL) or NoSQL stores. Experience with Git,
+API versioning, and CI/CD pipelines. Understanding of authentication standards such as OAuth2, JWT, etc. Strong debugging, problem-solving,
+and analytical skills. Preferred Skills: Experience with Docker, containerization, or cloud platforms (AWS/Azure/GCP). Knowledge of message
+queues (Kafka, RabbitMQ). Familiarity with microservices architecture. Exposure to API documentation tools (Swagger/OpenAPI).
